@@ -1,5 +1,5 @@
 import type { Target, TargetType, Position } from '../types/game';
-import { GAME_CONFIG, CREATURE_NAMES, WRECK_NAMES } from '../config/gameConfig';
+import { GAME_CONFIG, CREATURE_NAMES, WRECK_NAMES, DANGER_NAMES } from '../config/gameConfig';
 
 let nextId = 1;
 
@@ -72,7 +72,7 @@ export class TargetGenerator {
             name = WRECK_NAMES[Math.floor(Math.random() * WRECK_NAMES.length)];
             points = GAME_CONFIG.SCORE.WRECK_POINTS;
           } else {
-            name = '危险水雷';
+            name = DANGER_NAMES[Math.floor(Math.random() * DANGER_NAMES.length)];
             points = GAME_CONFIG.SCORE.DANGER_PENALTY;
           }
           targets.push({

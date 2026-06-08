@@ -1,9 +1,10 @@
-import type { Position, Target, GameState } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { MapRenderer } from './MapRenderer';
 import { SonarSystem } from './SonarSystem';
 import { TargetGenerator } from './TargetGenerator';
 import { ScoreSystem, type ScoreEvent } from './ScoreSystem';
+import { CollectionSystem } from './CollectionSystem';
 import * as PIXI from 'pixi.js';
 
 export class GameController {
@@ -11,6 +12,7 @@ export class GameController {
   private sonar: SonarSystem;
   private targetGenerator: TargetGenerator;
   private scoreSystem: ScoreSystem;
+  private collection: CollectionSystem;
 
   private targets: Target[] = [];
   private playerPosition: Position;
@@ -23,12 +25,14 @@ export class GameController {
   private onScoreEvent?: (event: ScoreEvent) => void;
   private onGameOver?: (finalScore: number) => void;
   private onLevelUp?: (newLevel: number) => void;
+  private onUnlock?: (event: UnlockEvent) => void;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, collectionSystem?: CollectionSystem) {
     this.renderer = new MapRenderer(container, GAME_CONFIG.MAP_WIDTH, GAME_CONFIG.MAP_HEIGHT);
     this.sonar = new SonarSystem();
     this.targetGenerator = new TargetGenerator(GAME_CONFIG.MAP_WIDTH, GAME_CONFIG.MAP_HEIGHT);
     this.scoreSystem = new ScoreSystem();
+    this.collection = collectionSystem ?? new CollectionSystem();
 
     this.playerPosition = {
       x: GAME_CONFIG.MAP_WIDTH / 2,
@@ -42,12 +46,14 @@ export class GameController {
     onStateChange: (state: GameState) => void,
     onScoreEvent: (event: ScoreEvent) => void,
     onGameOver: (finalScore: number) => void,
-    onLevelUp: (newLevel: number) => void
+    onLevelUp: (newLevel: number) => void,
+    onUnlock?: (event: UnlockEvent) => void
   ) {
     this.onStateChange = onStateChange;
     this.onScoreEvent = onScoreEvent;
     this.onGameOver = onGameOver;
     this.onLevelUp = onLevelUp;
+    this.onUnlock = onUnlock;
 
     this.scoreSystem.setStateCallbacks(
       (state) => this.onStateChange?.(state),
@@ -61,6 +67,7 @@ export class GameController {
     this.scoreSystem.startGame(this.targets.length);
     this.renderer.clearDiscovered();
     this.sonar.clear();
+    this.collection.resetSessionUnlocks();
     this.collectedCount = 0;
     this.collectedCreaturesAndWrecks = 0;
     this.lastRechargeTime = Date.now();
@@ -146,6 +153,12 @@ export class GameController {
 
         const alive = this.scoreSystem.collectTarget(target);
 
+        const state = this.scoreSystem.getState();
+        const unlockEvent = this.collection.recordTarget(target, state.level, target.points);
+        if (unlockEvent) {
+          this.onUnlock?.(unlockEvent);
+        }
+
         if (this.scoreSystem.checkLevelUp(this.collectedCreaturesAndWrecks)) {
           const state = this.scoreSystem.getState();
           this.targets.push(...this.targetGenerator.generateTargets(state.level));
@@ -169,6 +182,14 @@ export class GameController {
 
   getTargets(): Target[] {
     return this.targets;
+  }
+
+  getCollectionSystem(): CollectionSystem {
+    return this.collection;
+  }
+
+  getSessionUnlocks() {
+    return this.collection.getSessionUnlocks();
   }
 
   screenToWorld(screenX: number, screenY: number): Position {

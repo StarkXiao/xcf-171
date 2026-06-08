@@ -56,3 +56,11 @@ export const WRECK_NAMES = [
   '废弃潜艇',
   '货物集装箱',
 ];
+
+export const DANGER_NAMES = [
+  '危险水雷',
+  '深海漩涡',
+  '毒刺水母群',
+  '海底火山口',
+  '高压电流区',
+];

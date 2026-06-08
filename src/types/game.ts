@@ -18,6 +18,30 @@ export interface Target {
   rotation: number;
 }
 
+export interface CollectionEntry {
+  name: string;
+  type: TargetType;
+  unlocked: boolean;
+  firstDiscoveredAt: Position | null;
+  firstDiscoveredLevel: number;
+  discoveryCount: number;
+  bestScore: number;
+  lastDiscoveredAt: number;
+}
+
+export interface CollectionData {
+  creatures: Record<string, CollectionEntry>;
+  wrecks: Record<string, CollectionEntry>;
+  dangers: Record<string, CollectionEntry>;
+}
+
+export interface UnlockEvent {
+  name: string;
+  type: TargetType;
+  isNew: boolean;
+  entry: CollectionEntry;
+}
+
 export interface SonarWave {
   id: number;
   position: Position;

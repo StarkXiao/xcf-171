@@ -11,23 +11,35 @@
     />
 
     <StartScreen
-      v-if="!gameStarted"
+      v-if="!gameStarted && !showCollection"
       :high-score="highScore"
+      :collection-stats="collectionStats"
       @start="handleStart"
+      @open-collection="openCollection"
     />
 
     <GameOverScreen
-      v-if="gameState.isGameOver"
+      v-if="gameState.isGameOver && !showCollection"
       :score="gameState.score"
       :level="gameState.level"
       :discovered="gameState.discoveredTargets"
       :high-score="highScore"
+      :session-unlocks="sessionUnlocks"
       @restart="handleRestart"
       @home="handleHome"
+      @open-collection="openCollection"
+    />
+
+    <CollectionCenter
+      v-if="showCollection"
+      :collection-data="collectionData"
+      :stats="collectionStats"
+      @close="closeCollection"
+      @reset="handleResetCollection"
     />
 
     <div
-      v-if="gameState.isPlaying && !gameState.isGameOver"
+      v-if="gameState.isPlaying && !gameState.isGameOver && !showCollection"
       class="touch-area"
       @click="handleClick"
       @touchstart.prevent="handleTouch"
@@ -37,13 +49,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState } from './types/game';
+import type { GameState, UnlockEvent, CollectionData } from './types/game';
 import { GameController } from './game/GameController';
+import { CollectionSystem } from './game/CollectionSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
 import GameHUD from './components/GameHUD.vue';
 import StartScreen from './components/StartScreen.vue';
 import GameOverScreen from './components/GameOverScreen.vue';
 import FloatingScore from './components/FloatingScore.vue';
+import CollectionCenter from './components/CollectionCenter.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -52,6 +66,18 @@ const floatingScoreRef = ref<InstanceType<typeof FloatingScore> | null>(null);
 const gameStarted = ref(false);
 const showHint = ref(true);
 const highScore = ref(0);
+const showCollection = ref(false);
+const sessionUnlocks = ref<UnlockEvent[]>([]);
+
+const collectionSystem = new CollectionSystem();
+
+const collectionData = ref<CollectionData>(collectionSystem.getData());
+const collectionStats = ref(collectionSystem.getStats());
+
+const refreshCollection = () => {
+  collectionData.value = collectionSystem.getData();
+  collectionStats.value = collectionSystem.getStats();
+};
 
 const gameState = reactive<GameState>({
   score: 0,
@@ -91,7 +117,14 @@ const handleScoreEvent = (event: ScoreEvent) => {
   floatingScoreRef.value.addScore(event.points, event.targetName, type, x, y);
 };
 
+const handleUnlockEvent = (_event: UnlockEvent) => {
+  refreshCollection();
+};
+
 const handleGameOver = (finalScore: number) => {
+  sessionUnlocks.value = gameController?.getSessionUnlocks() ?? [];
+  refreshCollection();
+
   if (finalScore > highScore.value) {
     highScore.value = finalScore;
     try {
@@ -129,6 +162,21 @@ const handleHome = () => {
     totalTargets: 0,
   });
   showHint.value = true;
+  refreshCollection();
+};
+
+const openCollection = () => {
+  refreshCollection();
+  showCollection.value = true;
+};
+
+const closeCollection = () => {
+  showCollection.value = false;
+};
+
+const handleResetCollection = () => {
+  collectionSystem.resetAll();
+  refreshCollection();
 };
 
 const getEventPosition = (clientX: number, clientY: number) => {
@@ -168,13 +216,16 @@ onMounted(() => {
     if (saved) highScore.value = parseInt(saved, 10) || 0;
   } catch (_e) {}
 
+  refreshCollection();
+
   if (canvasRef.value) {
-    gameController = new GameController(canvasRef.value);
+    gameController = new GameController(canvasRef.value, collectionSystem);
     gameController.setCallbacks(
       updateState,
       handleScoreEvent,
       handleGameOver,
-      handleLevelUp
+      handleLevelUp,
+      handleUnlockEvent
     );
   }
 });

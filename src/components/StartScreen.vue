@@ -51,18 +51,51 @@
       <div class="high-score" v-if="highScore > 0">
         最高分: <span class="high-score-value">{{ highScore }}</span>
       </div>
+
+      <div class="collection-entry" @click="$emit('openCollection')">
+        <div class="collection-entry-icon">📖</div>
+        <div class="collection-entry-info">
+          <div class="collection-entry-title">深海图鉴中心</div>
+          <div class="collection-entry-progress">
+            <span class="progress-text">已解锁 {{ collectionStats.unlocked }}/{{ collectionStats.total }}</span>
+            <div class="progress-bar-mini">
+              <div
+                class="progress-fill-mini"
+                :style="{ width: collectionPercent + '%' }"
+              ></div>
+            </div>
+          </div>
+        </div>
+        <div class="collection-entry-arrow">›</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue';
+
+const props = defineProps<{
   highScore: number;
+  collectionStats: {
+    total: number;
+    unlocked: number;
+    totalDiscoveries: number;
+    creatures: { total: number; unlocked: number };
+    wrecks: { total: number; unlocked: number };
+    dangers: { total: number; unlocked: number };
+  };
 }>();
 
 defineEmits<{
   (e: 'start'): void;
+  (e: 'openCollection'): void;
 }>();
+
+const collectionPercent = computed(() => {
+  if (props.collectionStats.total === 0) return 0;
+  return Math.round((props.collectionStats.unlocked / props.collectionStats.total) * 100);
+});
 </script>
 
 <style scoped>
@@ -273,5 +306,88 @@ defineEmits<{
   font-weight: bold;
   font-size: 16px;
   margin-left: 4px;
+}
+
+.collection-entry {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(0, 50, 80, 0.6), rgba(0, 25, 45, 0.7));
+  border: 1px solid rgba(0, 255, 170, 0.25);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.collection-entry:hover {
+  background: linear-gradient(135deg, rgba(0, 80, 120, 0.6), rgba(0, 40, 70, 0.7));
+  border-color: rgba(0, 255, 170, 0.45);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 255, 200, 0.1);
+}
+
+.collection-entry-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.collection-entry-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.collection-entry-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.95);
+  letter-spacing: 2px;
+}
+
+.collection-entry-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: rgba(200, 220, 255, 0.6);
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+}
+
+.progress-bar-mini {
+  flex: 1;
+  height: 5px;
+  background: rgba(0, 50, 70, 0.6);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.progress-fill-mini {
+  height: 100%;
+  background: linear-gradient(90deg, #00ffaa, #00e5ff);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 6px rgba(0, 255, 170, 0.4);
+}
+
+.collection-entry-arrow {
+  font-size: 22px;
+  color: rgba(0, 255, 200, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.collection-entry:hover .collection-entry-arrow {
+  transform: translateX(3px);
+  color: rgba(0, 255, 200, 0.8);
 }
 </style>

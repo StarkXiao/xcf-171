@@ -32,9 +32,32 @@
         <span class="rank-badge" :class="rankClass">{{ rank }}</span>
       </div>
 
+      <div v-if="sessionUnlocks.length > 0" class="unlocks-section">
+        <div class="unlocks-title">
+          <span class="unlocks-icon">📖</span>
+          <span>本局图鉴解锁</span>
+        </div>
+        <div class="unlocks-list">
+          <div
+            v-for="u in sessionUnlocks"
+            :key="u.name + u.entry.lastDiscoveredAt"
+            class="unlock-item"
+            :class="u.type"
+          >
+            <span class="unlock-name">{{ u.name }}</span>
+            <span v-if="u.isNew" class="unlock-new">NEW</span>
+          </div>
+        </div>
+      </div>
+
       <button class="restart-btn" @click="$emit('restart')">
         <span class="btn-icon">🔄</span>
         <span>再次探测</span>
+      </button>
+
+      <button class="collection-btn" @click="$emit('openCollection')" v-if="sessionUnlocks.length > 0">
+        <span class="btn-icon">📖</span>
+        <span>查看图鉴</span>
       </button>
 
       <button class="home-btn" @click="$emit('home')">
@@ -46,17 +69,20 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { UnlockEvent } from '../types/game';
 
 const props = defineProps<{
   score: number;
   level: number;
   discovered: number;
   highScore: number;
+  sessionUnlocks: UnlockEvent[];
 }>();
 
 defineEmits<{
   (e: 'restart'): void;
   (e: 'home'): void;
+  (e: 'openCollection'): void;
 }>();
 
 const isNewHighScore = computed(() => props.score >= props.highScore && props.score > 0);
@@ -298,6 +324,110 @@ const formatNumber = (n: number) => n.toLocaleString();
 
 .btn-icon {
   font-size: 18px;
+}
+
+.unlocks-section {
+  margin-bottom: 20px;
+  background: rgba(0, 40, 60, 0.4);
+  border: 1px solid rgba(0, 255, 170, 0.2);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.unlocks-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(0, 255, 200, 0.9);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+
+.unlocks-icon {
+  font-size: 16px;
+}
+
+.unlocks-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.unlock-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(0, 60, 80, 0.5);
+  border-radius: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 255, 170, 0.25);
+}
+
+.unlock-item.creature {
+  border-color: rgba(0, 229, 255, 0.35);
+  background: rgba(0, 80, 100, 0.4);
+}
+
+.unlock-item.wreck {
+  border-color: rgba(255, 204, 0, 0.35);
+  background: rgba(100, 80, 0, 0.35);
+}
+
+.unlock-item.danger {
+  border-color: rgba(255, 51, 85, 0.35);
+  background: rgba(100, 20, 40, 0.4);
+}
+
+.unlock-name {
+  font-weight: 500;
+}
+
+.unlock-new {
+  font-size: 9px;
+  font-weight: bold;
+  color: #fff;
+  background: linear-gradient(135deg, #ff6688, #ff3355);
+  padding: 1px 6px;
+  border-radius: 8px;
+  letter-spacing: 1px;
+  animation: pulse-new 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-new {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.collection-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 204, 0, 0.95);
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.12), rgba(255, 136, 0, 0.12));
+  border: 1px solid rgba(255, 204, 0, 0.45);
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 15px rgba(255, 204, 0, 0.1);
+}
+
+.collection-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.2), rgba(255, 136, 0, 0.2));
+  border-color: rgba(255, 204, 0, 0.6);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(255, 204, 0, 0.2);
 }
 
 .home-btn {
