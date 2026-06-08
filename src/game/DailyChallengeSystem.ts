@@ -337,6 +337,7 @@ export function applyChallengeRules(
     livesBonus: number;
     livesOverride: number | null;
     maxSonarCharges: number;
+    initialSonarBonus: number;
     sonarRadius: number;
     sonarSpeed: number;
     dangerCountMul: number;
@@ -351,6 +352,7 @@ export function applyChallengeRules(
         break;
       case 'limited_sonar':
         effects.maxSonarCharges = 3;
+        effects.initialSonarBonus = 0;
         break;
       case 'no_recharge':
         effects.disableRecharge = true;

@@ -77,6 +77,7 @@ export class GameController {
       livesBonus: this.currentEffects.livesBonus,
       livesOverride: null as number | null,
       maxSonarCharges: this.currentEffects.maxSonarCharges,
+      initialSonarBonus: this.currentEffects.initialSonarBonus,
       sonarRadius: this.currentEffects.sonarRadius,
       sonarSpeed: this.currentEffects.sonarSpeed,
       dangerCountMul: this.currentEffects.dangerCountMul,
@@ -109,7 +110,7 @@ export class GameController {
       initialLivesBonus: challengeEffects.livesBonus,
       initialLivesOverride: challengeEffects.livesOverride,
       maxSonarCharges: challengeEffects.maxSonarCharges,
-      initialSonarBonus: this.currentEffects.initialSonarBonus,
+      initialSonarBonus: challengeEffects.initialSonarBonus,
       scoreMul: challengeEffects.scoreMul,
     });
   }

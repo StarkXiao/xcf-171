@@ -51,11 +51,13 @@ export class ScoreSystem {
   }
 
   private createInitialState(): GameState {
-    const maxCharges = this.params.maxSonarCharges;
+    const effectiveMaxCharges = Math.max(1, this.params.maxSonarCharges);
     const lives = this.params.initialLivesOverride !== null
       ? this.params.initialLivesOverride
       : GAME_CONFIG.GAME.INITIAL_LIVES + this.params.initialLivesBonus;
     const effectiveLives = Math.max(1, lives);
+    const rawInitialCharges = effectiveMaxCharges + this.params.initialSonarBonus;
+    const effectiveInitialCharges = Math.max(1, rawInitialCharges);
     return {
       score: 0,
       lives: effectiveLives,
@@ -63,8 +65,8 @@ export class ScoreSystem {
       isPlaying: false,
       isPaused: false,
       isGameOver: false,
-      sonarCharges: Math.max(1, maxCharges + this.params.initialSonarBonus),
-      maxSonarCharges: Math.max(1, maxCharges),
+      sonarCharges: effectiveInitialCharges,
+      maxSonarCharges: effectiveMaxCharges,
       discoveredTargets: 0,
       totalTargets: 0,
     };
