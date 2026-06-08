@@ -27,6 +27,30 @@
         </div>
       </div>
 
+      <div v-if="isDailyChallenge" class="daily-info">
+        <div class="daily-header">
+          <span class="daily-icon">🎯</span>
+          <span class="daily-title">每日挑战 - {{ dailyChallengeTitle }}</span>
+        </div>
+        <div class="daily-stats-row">
+          <div class="daily-stat">
+            <span class="daily-stat-label">今日最佳</span>
+            <span class="daily-stat-value best">{{ formatNumber(dailyBestScore ?? 0) }}</span>
+          </div>
+          <div class="daily-stat" v-if="dailyPlayerRank">
+            <span class="daily-stat-label">当前排名</span>
+            <span class="daily-stat-value rank">#{{ dailyPlayerRank }}</span>
+          </div>
+          <div class="daily-stat">
+            <span class="daily-stat-label">尝试次数</span>
+            <span class="daily-stat-value">{{ dailyAttempts }}</span>
+          </div>
+        </div>
+        <div v-if="isDailyNewRecord" class="daily-new-record">
+          <span class="record-icon">🏆</span> 刷新今日最佳！
+        </div>
+      </div>
+
       <div class="rank-display">
         <span class="rank-label">评价等级</span>
         <span class="rank-badge" :class="rankClass">{{ rank }}</span>
@@ -52,7 +76,12 @@
 
       <button class="restart-btn" @click="$emit('restart')">
         <span class="btn-icon">🔄</span>
-        <span>再次探测</span>
+        <span>{{ isDailyChallenge ? '再次挑战' : '再次探测' }}</span>
+      </button>
+
+      <button class="leaderboard-btn" @click="$emit('openLeaderboard')" v-if="isDailyChallenge">
+        <span class="btn-icon">🏆</span>
+        <span>查看排行榜</span>
       </button>
 
       <button class="collection-btn" @click="$emit('openCollection')" v-if="sessionUnlocks.length > 0">
@@ -77,12 +106,19 @@ const props = defineProps<{
   discovered: number;
   highScore: number;
   sessionUnlocks: UnlockEvent[];
+  isDailyChallenge?: boolean;
+  dailyChallengeTitle?: string;
+  dailyBestScore?: number;
+  dailyPlayerRank?: number | null;
+  dailyAttempts?: number;
+  isDailyNewRecord?: boolean;
 }>();
 
 defineEmits<{
   (e: 'restart'): void;
   (e: 'home'): void;
   (e: 'openCollection'): void;
+  (e: 'openLeaderboard'): void;
 }>();
 
 const isNewHighScore = computed(() => props.score >= props.highScore && props.score > 0);
@@ -446,5 +482,113 @@ const formatNumber = (n: number) => n.toLocaleString();
 .home-btn:hover {
   background: rgba(0, 255, 170, 0.1);
   border-color: rgba(0, 255, 170, 0.5);
+}
+
+.daily-info {
+  background: linear-gradient(135deg, rgba(255, 100, 50, 0.15), rgba(255, 50, 100, 0.15));
+  border: 1px solid rgba(255, 150, 80, 0.35);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 18px;
+}
+
+.daily-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.daily-icon {
+  font-size: 20px;
+}
+
+.daily-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 180, 100, 0.95);
+  letter-spacing: 2px;
+}
+
+.daily-stats-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.daily-stat {
+  flex: 1;
+  text-align: center;
+  background: rgba(60, 30, 10, 0.5);
+  border-radius: 8px;
+  padding: 8px 6px;
+}
+
+.daily-stat-label {
+  display: block;
+  font-size: 10px;
+  color: rgba(255, 200, 150, 0.5);
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+}
+
+.daily-stat-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: rgba(255, 200, 150, 0.9);
+  font-family: 'Courier New', monospace;
+}
+
+.daily-stat-value.best {
+  color: #ffcc66;
+}
+
+.daily-stat-value.rank {
+  color: #ff8866;
+}
+
+.daily-new-record {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.25), rgba(255, 136, 0, 0.25));
+  border: 1px solid rgba(255, 204, 0, 0.55);
+  border-radius: 18px;
+  color: #ffcc66;
+  font-size: 13px;
+  font-weight: bold;
+  animation: pulse-daily-record 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-daily-record {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.leaderboard-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 204, 0, 0.95);
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.12), rgba(255, 136, 0, 0.12));
+  border: 1px solid rgba(255, 204, 0, 0.45);
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  transition: all 0.3s ease;
+}
+
+.leaderboard-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.2), rgba(255, 136, 0, 0.2));
+  border-color: rgba(255, 204, 0, 0.6);
+  transform: translateY(-1px);
 }
 </style>

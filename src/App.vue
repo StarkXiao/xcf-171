@@ -8,34 +8,68 @@
       v-if="gameState.isPlaying && !gameState.isGameOver"
       :state="gameState"
       :show-hint="showHint"
+      :is-daily-challenge="isDailyChallengeMode"
+      :daily-challenge-title="dailyChallenge?.title"
     />
 
     <StartScreen
-      v-if="!gameStarted && !showCollection && !showPrep"
+      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard"
       :high-score="highScore"
       :collection-stats="collectionStats"
+      :daily-challenge-completed="dailyChallengeSystem.isTodayCompleted()"
+      :daily-challenge-title="dailyChallenge?.title"
+      :daily-best-score="dailyChallengeSystem.getTodayBestRecord()?.score ?? 0"
       @start="handleStart"
       @open-collection="openCollection"
       @open-prep="openPrep"
+      @open-daily-challenge="openDailyChallenge"
+    />
+
+    <DailyChallengeScreen
+      v-if="showDailyChallenge && !gameStarted && !showCollection && !showPrep && !showDailyLeaderboard"
+      :challenge="dailyChallenge!"
+      :best-record="dailyChallengeSystem.getTodayBestRecord()"
+      :attempts-today="dailyChallengeSystem.getAttemptsToday()"
+      :player-rank="dailyChallengeSystem.getPlayerRank()"
+      :streak-days="dailyChallengeSystem.getStreakDays()"
+      :system="dailyChallengeSystem"
+      @back="closeDailyChallenge"
+      @start="handleDailyChallengeStart"
+      @open-leaderboard="openDailyLeaderboard"
+    />
+
+    <DailyChallengeDetail
+      v-if="showDailyLeaderboard && !gameStarted"
+      :challenge="dailyChallenge!"
+      :leaderboard="dailyChallengeSystem.getLeaderboard()"
+      :history="dailyChallengeSystem.getHistory()"
+      @back="closeDailyLeaderboard"
     />
 
     <ExpeditionPrep
-      v-if="showPrep && !gameStarted && !showCollection"
+      v-if="showPrep && !gameStarted && !showCollection && !showDailyChallenge && !showDailyLeaderboard"
       :initial-loadout="currentLoadout"
       @start="handlePrepStart"
       @back="closePrep"
     />
 
     <GameOverScreen
-      v-if="gameState.isGameOver && !showCollection"
+      v-if="gameState.isGameOver && !showCollection && !showDailyLeaderboard"
       :score="gameState.score"
       :level="gameState.level"
       :discovered="gameState.discoveredTargets"
       :high-score="highScore"
       :session-unlocks="sessionUnlocks"
+      :is-daily-challenge="isDailyChallengeMode"
+      :daily-challenge-title="dailyChallenge?.title"
+      :daily-best-score="dailyChallengeSystem.getTodayBestRecord()?.score ?? 0"
+      :daily-player-rank="dailyChallengeSystem.getPlayerRank()"
+      :daily-attempts="dailyChallengeSystem.getAttemptsToday()"
+      :is-daily-new-record="isDailyNewRecord"
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
+      @open-leaderboard="openDailyLeaderboardFromGameOver"
     />
 
     <CollectionCenter
@@ -57,9 +91,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, DailyChallengeConfig } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
+import { DailyChallengeSystem } from './game/DailyChallengeSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT } from './config/expeditionConfig';
 import GameHUD from './components/GameHUD.vue';
@@ -68,6 +103,8 @@ import GameOverScreen from './components/GameOverScreen.vue';
 import FloatingScore from './components/FloatingScore.vue';
 import CollectionCenter from './components/CollectionCenter.vue';
 import ExpeditionPrep from './components/ExpeditionPrep.vue';
+import DailyChallengeScreen from './components/DailyChallengeScreen.vue';
+import DailyChallengeDetail from './components/DailyChallengeDetail.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -78,10 +115,17 @@ const showHint = ref(true);
 const highScore = ref(0);
 const showCollection = ref(false);
 const showPrep = ref(false);
+const showDailyChallenge = ref(false);
+const showDailyLeaderboard = ref(false);
+const isDailyChallengeMode = ref(false);
+const isDailyNewRecord = ref(false);
 const sessionUnlocks = ref<UnlockEvent[]>([]);
 const currentLoadout = ref<ExpeditionLoadout>({ ...DEFAULT_LOADOUT });
 
 const collectionSystem = new CollectionSystem();
+const dailyChallengeSystem = new DailyChallengeSystem();
+
+const dailyChallenge = ref<DailyChallengeConfig | null>(null);
 
 const collectionData = ref<CollectionData>(collectionSystem.getData());
 const collectionStats = ref(collectionSystem.getStats());
@@ -89,6 +133,10 @@ const collectionStats = ref(collectionSystem.getStats());
 const refreshCollection = () => {
   collectionData.value = collectionSystem.getData();
   collectionStats.value = collectionSystem.getStats();
+};
+
+const refreshDailyChallenge = () => {
+  dailyChallenge.value = dailyChallengeSystem.getTodayChallenge();
 };
 
 const gameState = reactive<GameState>({
@@ -121,7 +169,7 @@ const handleScoreEvent = (event: ScoreEvent) => {
     const world = gameController?.screenToWorld(event.position.x, event.position.y);
     if (world) {
       x = Math.max(40, Math.min(rect.width - 40, world.x));
-      y = Math.max(60, Math.min(rect.height - 160, event.position.y - (world.y - event.position.y > 0 ? 0 : 0)));
+      y = Math.max(60, Math.min(rect.height - 160, event.position.y));
     }
   }
 
@@ -137,6 +185,17 @@ const handleGameOver = (finalScore: number) => {
   sessionUnlocks.value = gameController?.getSessionUnlocks() ?? [];
   refreshCollection();
 
+  if (isDailyChallengeMode.value) {
+    const prevBest = dailyChallengeSystem.getTodayBestRecord();
+    const prevBestScore = prevBest?.score ?? 0;
+    dailyChallengeSystem.recordAttempt(
+      finalScore,
+      gameState.level,
+      gameState.discoveredTargets
+    );
+    isDailyNewRecord.value = finalScore > prevBestScore;
+  }
+
   if (finalScore > highScore.value) {
     highScore.value = finalScore;
     try {
@@ -148,6 +207,25 @@ const handleGameOver = (finalScore: number) => {
 const handleLevelUp = (_newLevel: number) => {};
 
 const handleStart = () => {
+  isDailyChallengeMode.value = false;
+  isDailyNewRecord.value = false;
+  gameController?.setDailyChallenge(null);
+  gameStarted.value = true;
+  gameController?.setLoadout(currentLoadout.value);
+  gameController?.startGame();
+  setTimeout(() => {
+    showHint.value = false;
+  }, 5000);
+};
+
+const handleDailyChallengeStart = () => {
+  isDailyChallengeMode.value = true;
+  isDailyNewRecord.value = false;
+  refreshDailyChallenge();
+  if (dailyChallenge.value) {
+    gameController?.setDailyChallenge(dailyChallenge.value);
+  }
+  showDailyChallenge.value = false;
   gameStarted.value = true;
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
@@ -178,13 +256,44 @@ const closePrep = () => {
   showPrep.value = false;
 };
 
+const openDailyChallenge = () => {
+  refreshDailyChallenge();
+  showDailyChallenge.value = true;
+};
+
+const closeDailyChallenge = () => {
+  showDailyChallenge.value = false;
+};
+
+const openDailyLeaderboard = () => {
+  showDailyLeaderboard.value = true;
+};
+
+const openDailyLeaderboardFromGameOver = () => {
+  refreshDailyChallenge();
+  showDailyLeaderboard.value = true;
+};
+
+const closeDailyLeaderboard = () => {
+  showDailyLeaderboard.value = false;
+};
+
 const handleRestart = () => {
+  isDailyNewRecord.value = false;
+  if (isDailyChallengeMode.value) {
+    refreshDailyChallenge();
+    if (dailyChallenge.value) {
+      gameController?.setDailyChallenge(dailyChallenge.value);
+    }
+  }
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
 };
 
 const handleHome = () => {
   gameStarted.value = false;
+  isDailyChallengeMode.value = false;
+  isDailyNewRecord.value = false;
   Object.assign(gameState, {
     score: 0,
     lives: 3,
@@ -198,7 +307,9 @@ const handleHome = () => {
     totalTargets: 0,
   });
   showHint.value = true;
+  showDailyLeaderboard.value = false;
   refreshCollection();
+  refreshDailyChallenge();
 };
 
 const openCollection = () => {
@@ -262,6 +373,7 @@ onMounted(() => {
   } catch (_e) {}
 
   refreshCollection();
+  refreshDailyChallenge();
 
   if (canvasRef.value) {
     gameController = new GameController(canvasRef.value, collectionSystem);

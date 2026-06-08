@@ -142,3 +142,57 @@ export interface LoadoutEffects {
   initialSonarBonus: number;
   precisionBonus: number;
 }
+
+export type DailyChallengeRuleType =
+  | 'limited_lives'
+  | 'limited_sonar'
+  | 'no_recharge'
+  | 'speed_sonar'
+  | 'more_dangers'
+  | 'bonus_score'
+  | 'fog_of_war'
+  | 'single_life';
+
+export interface DailyChallengeRule {
+  type: DailyChallengeRuleType;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export interface DailyChallengeConfig {
+  date: string;
+  seed: number;
+  title: string;
+  description: string;
+  rules: DailyChallengeRule[];
+  targetLevel: number;
+  timeLimit?: number;
+}
+
+export interface DailyChallengeRecord {
+  date: string;
+  score: number;
+  level: number;
+  discovered: number;
+  completedAt: number;
+  rank: string;
+}
+
+export interface DailyChallengeLeaderboardEntry {
+  rank: number;
+  score: number;
+  level: number;
+  playerName: string;
+  completedAt: number;
+  isCurrentPlayer: boolean;
+}
+
+export interface DailyChallengeSaveData {
+  bestRecord: DailyChallengeRecord | null;
+  attempts: number;
+  lastAttemptAt: number | null;
+  completedDates: string[];
+  history: DailyChallengeRecord[];
+  playerName: string;
+}

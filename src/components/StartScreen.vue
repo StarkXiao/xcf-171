@@ -43,6 +43,23 @@
         </div>
       </div>
 
+      <div class="daily-challenge-entry" @click="$emit('openDailyChallenge')">
+        <div class="daily-icon-wrap">
+          <span class="daily-icon">🎯</span>
+          <span class="daily-badge" v-if="dailyChallengeCompleted">✓</span>
+        </div>
+        <div class="daily-info">
+          <div class="daily-title">每日挑战</div>
+          <div class="daily-subtitle" v-if="dailyChallengeTitle">{{ dailyChallengeTitle }}</div>
+          <div class="daily-subtitle" v-else>今日挑战已解锁</div>
+        </div>
+        <div class="daily-score" v-if="(dailyBestScore ?? 0) > 0">
+          <span class="daily-score-label">最佳</span>
+          <span class="daily-score-value">{{ dailyBestScore }}</span>
+        </div>
+        <div class="daily-arrow">›</div>
+      </div>
+
       <div class="btn-row">
         <button class="prep-btn" @click="$emit('openPrep')">
           <span class="prep-icon">⚙️</span>
@@ -91,12 +108,16 @@ const props = defineProps<{
     wrecks: { total: number; unlocked: number };
     dangers: { total: number; unlocked: number };
   };
+  dailyChallengeCompleted?: boolean;
+  dailyChallengeTitle?: string;
+  dailyBestScore?: number;
 }>();
 
 defineEmits<{
   (e: 'start'): void;
   (e: 'openCollection'): void;
   (e: 'openPrep'): void;
+  (e: 'openDailyChallenge'): void;
 }>();
 
 const collectionPercent = computed(() => {
@@ -438,5 +459,132 @@ const collectionPercent = computed(() => {
 .collection-entry:hover .collection-entry-arrow {
   transform: translateX(3px);
   color: rgba(0, 255, 200, 0.8);
+}
+
+.daily-challenge-entry {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(255, 100, 50, 0.12), rgba(255, 50, 100, 0.12));
+  border: 1px solid rgba(255, 150, 80, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.daily-challenge-entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 180, 100, 0.1),
+    transparent
+  );
+  animation: daily-shine 3s ease-in-out infinite;
+}
+
+@keyframes daily-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.daily-challenge-entry:hover {
+  background: linear-gradient(135deg, rgba(255, 120, 60, 0.2), rgba(255, 80, 120, 0.2));
+  border-color: rgba(255, 180, 100, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(255, 150, 80, 0.2);
+}
+
+.daily-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.daily-icon {
+  font-size: 28px;
+  display: block;
+}
+
+.daily-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #00ff88, #00cc66);
+  color: #003322;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+}
+
+.daily-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.daily-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 180, 100, 0.95);
+  letter-spacing: 2px;
+}
+
+.daily-subtitle {
+  font-size: 11px;
+  color: rgba(255, 200, 150, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.daily-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.daily-score-label {
+  font-size: 9px;
+  color: rgba(255, 200, 150, 0.5);
+  letter-spacing: 1px;
+}
+
+.daily-score-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffcc66;
+  font-family: 'Courier New', monospace;
+}
+
+.daily-arrow {
+  font-size: 22px;
+  color: rgba(255, 180, 100, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.daily-challenge-entry:hover .daily-arrow {
+  transform: translateX(3px);
+  color: rgba(255, 180, 100, 0.8);
 }
 </style>

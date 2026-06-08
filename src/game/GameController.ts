@@ -1,4 +1,4 @@
-import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, DailyChallengeConfig } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
 import { MapRenderer } from './MapRenderer';
@@ -6,6 +6,7 @@ import { SonarSystem } from './SonarSystem';
 import { TargetGenerator } from './TargetGenerator';
 import { ScoreSystem, type ScoreEvent } from './ScoreSystem';
 import { CollectionSystem } from './CollectionSystem';
+import { applyChallengeRules } from './DailyChallengeSystem';
 import * as PIXI from 'pixi.js';
 
 export class GameController {
@@ -23,6 +24,8 @@ export class GameController {
   private collectedCreaturesAndWrecks: number = 0;
   private currentLoadout: ExpeditionLoadout;
   private currentEffects: LoadoutEffects;
+  private dailyChallenge: DailyChallengeConfig | null = null;
+  private disableSonarRecharge: boolean = false;
 
   private onStateChange?: (state: GameState) => void;
   private onScoreEvent?: (event: ScoreEvent) => void;
@@ -53,30 +56,59 @@ export class GameController {
     this.sonar.setEchoCallback(() => {});
   }
 
+  setDailyChallenge(challenge: DailyChallengeConfig | null) {
+    this.dailyChallenge = challenge;
+    if (challenge) {
+      this.targetGenerator.setSeed(challenge.seed);
+    } else {
+      this.targetGenerator.setSeed(null);
+    }
+  }
+
+  getDailyChallenge(): DailyChallengeConfig | null {
+    return this.dailyChallenge;
+  }
+
   setLoadout(loadout: ExpeditionLoadout) {
     this.currentLoadout = { ...loadout };
     this.currentEffects = computeLoadoutEffects(this.currentLoadout);
+
+    let challengeEffects = {
+      livesBonus: this.currentEffects.livesBonus,
+      maxSonarCharges: this.currentEffects.maxSonarCharges,
+      sonarRadius: this.currentEffects.sonarRadius,
+      sonarSpeed: this.currentEffects.sonarSpeed,
+      dangerCountMul: this.currentEffects.dangerCountMul,
+      scoreMul: this.currentEffects.scoreMul,
+      disableRecharge: false,
+    };
+
+    if (this.dailyChallenge) {
+      challengeEffects = applyChallengeRules(this.dailyChallenge, challengeEffects);
+    }
+
+    this.disableSonarRecharge = challengeEffects.disableRecharge;
 
     this.renderer.setMapSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
     this.targetGenerator.setSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
     this.targetGenerator.setMultipliers({
       creatureCountMul: this.currentEffects.creatureCountMul,
       wreckCountMul: this.currentEffects.wreckCountMul,
-      dangerCountMul: this.currentEffects.dangerCountMul,
+      dangerCountMul: challengeEffects.dangerCountMul,
       creaturePointsBonus: this.currentEffects.creaturePointsBonus,
       wreckPointsBonus: this.currentEffects.wreckPointsBonus,
-      scoreMul: this.currentEffects.scoreMul,
+      scoreMul: challengeEffects.scoreMul,
     });
     this.sonar.setParams(
-      this.currentEffects.sonarRadius,
-      this.currentEffects.sonarSpeed,
+      challengeEffects.sonarRadius,
+      challengeEffects.sonarSpeed,
       this.currentEffects.precisionBonus
     );
     this.scoreSystem.setParams({
-      initialLivesBonus: this.currentEffects.livesBonus,
-      maxSonarCharges: this.currentEffects.maxSonarCharges,
+      initialLivesBonus: challengeEffects.livesBonus,
+      maxSonarCharges: challengeEffects.maxSonarCharges,
       initialSonarBonus: this.currentEffects.initialSonarBonus,
-      scoreMul: this.currentEffects.scoreMul,
+      scoreMul: challengeEffects.scoreMul,
     });
   }
 
@@ -150,10 +182,12 @@ export class GameController {
 
     this.renderer.updateCamera(this.playerPosition.y);
 
-    const now = Date.now();
-    if (now - this.lastRechargeTime >= GAME_CONFIG.SONAR.RECHARGE_TIME) {
-      this.scoreSystem.rechargeSonar();
-      this.lastRechargeTime = now;
+    if (!this.disableSonarRecharge) {
+      const now = Date.now();
+      if (now - this.lastRechargeTime >= GAME_CONFIG.SONAR.RECHARGE_TIME) {
+        this.scoreSystem.rechargeSonar();
+        this.lastRechargeTime = now;
+      }
     }
   }
 

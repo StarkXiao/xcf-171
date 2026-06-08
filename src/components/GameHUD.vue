@@ -2,6 +2,10 @@
   <div class="game-hud">
     <div class="hud-top">
       <div class="hud-panel">
+        <div class="daily-tag" v-if="isDailyChallenge">
+          <span class="daily-tag-icon">🎯</span>
+          <span class="daily-tag-text">{{ dailyChallengeTitle || '每日挑战' }}</span>
+        </div>
         <div class="hud-item">
           <span class="hud-label">分数</span>
           <span class="hud-value score">{{ formatNumber(state.score) }}</span>
@@ -16,8 +20,8 @@
         <div class="hud-item lives">
           <span class="hud-label">生命</span>
           <div class="hearts">
-            <span v-for="i in state.lives" :key="i" class="heart">❤</span>
-            <span v-for="i in (3 - state.lives)" :key="'empty' + i" class="heart empty">♡</span>
+            <span v-for="i in Math.max(state.lives, 0)" :key="i" class="heart">❤</span>
+            <span v-for="i in Math.max((minLivesForDisplay - state.lives), 0)" :key="'empty' + i" class="heart empty">♡</span>
           </div>
         </div>
       </div>
@@ -64,11 +68,17 @@ import type { GameState } from '../types/game';
 const props = defineProps<{
   state: GameState;
   showHint: boolean;
+  isDailyChallenge?: boolean;
+  dailyChallengeTitle?: string;
 }>();
 
 const progressPercent = computed(() => {
   if (props.state.totalTargets === 0) return 0;
   return (props.state.discoveredTargets / props.state.totalTargets) * 100;
+});
+
+const minLivesForDisplay = computed(() => {
+  return Math.max(3, props.state.lives + (3 - props.state.lives > 0 ? 0 : 0));
 });
 
 const formatNumber = (n: number) => {
@@ -104,6 +114,28 @@ const formatNumber = (n: number) => {
   padding: 10px 14px;
   backdrop-filter: blur(8px);
   box-shadow: 0 0 20px rgba(0, 255, 170, 0.1);
+}
+
+.daily-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(255, 100, 50, 0.3), rgba(255, 50, 100, 0.3));
+  border: 1px solid rgba(255, 150, 80, 0.5);
+  border-radius: 14px;
+  margin-bottom: 8px;
+}
+
+.daily-tag-icon {
+  font-size: 14px;
+}
+
+.daily-tag-text {
+  font-size: 11px;
+  font-weight: bold;
+  color: rgba(255, 200, 150, 0.95);
+  letter-spacing: 1px;
 }
 
 .hud-item {

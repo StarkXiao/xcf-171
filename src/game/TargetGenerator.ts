@@ -1,5 +1,6 @@
 import type { Target, TargetType, Position } from '../types/game';
 import { GAME_CONFIG, CREATURE_NAMES, WRECK_NAMES, DANGER_NAMES } from '../config/gameConfig';
+import { SeededRandom } from './SeededRandom';
 
 let nextId = 1;
 
@@ -23,6 +24,8 @@ export class TargetGenerator {
     wreckPointsBonus: 0,
     scoreMul: 1,
   };
+  private seed: number | null = null;
+  private rng: SeededRandom | null = null;
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -38,7 +41,22 @@ export class TargetGenerator {
     this.multipliers = mults;
   }
 
+  setSeed(seed: number | null) {
+    this.seed = seed;
+    if (seed !== null) {
+      this.rng = new SeededRandom(seed);
+    } else {
+      this.rng = null;
+    }
+  }
+
   private randomPosition(margin: number): Position {
+    if (this.rng) {
+      return {
+        x: margin + this.rng.nextFloat(0, 1) * (this.width - 2 * margin),
+        y: margin + this.rng.nextFloat(0, 1) * (this.height - 2 * margin),
+      };
+    }
     return {
       x: margin + Math.random() * (this.width - 2 * margin),
       y: margin + Math.random() * (this.height - 2 * margin),
@@ -46,18 +64,38 @@ export class TargetGenerator {
   }
 
   private randomRadius(min: number, max: number): number {
+    if (this.rng) {
+      return this.rng.nextFloat(min, max);
+    }
     return min + Math.random() * (max - min);
   }
 
   private randomShape(type: TargetType): 'circle' | 'triangle' | 'square' | 'irregular' {
     if (type === 'danger') {
       const shapes: Array<'triangle' | 'square'> = ['triangle', 'square'];
+      if (this.rng) {
+        return shapes[Math.floor(this.rng.next() * shapes.length)];
+      }
       return shapes[Math.floor(Math.random() * shapes.length)];
     }
     if (type === 'wreck') {
       return 'irregular';
     }
     return 'circle';
+  }
+
+  private randomRotation(): number {
+    if (this.rng) {
+      return this.rng.nextFloat(0, Math.PI * 2);
+    }
+    return Math.random() * Math.PI * 2;
+  }
+
+  private randomPick<T>(array: T[]): T {
+    if (this.rng) {
+      return array[Math.floor(this.rng.next() * array.length)];
+    }
+    return array[Math.floor(Math.random() * array.length)];
   }
 
   private isOverlapping(pos: Position, radius: number, existing: Target[]): boolean {
@@ -96,13 +134,13 @@ export class TargetGenerator {
           let name = '';
           let points = 0;
           if (type === 'creature') {
-            name = CREATURE_NAMES[Math.floor(Math.random() * CREATURE_NAMES.length)];
+            name = this.randomPick(CREATURE_NAMES);
             points = Math.round((GAME_CONFIG.SCORE.CREATURE_POINTS + this.multipliers.creaturePointsBonus) * this.multipliers.scoreMul);
           } else if (type === 'wreck') {
-            name = WRECK_NAMES[Math.floor(Math.random() * WRECK_NAMES.length)];
+            name = this.randomPick(WRECK_NAMES);
             points = Math.round((GAME_CONFIG.SCORE.WRECK_POINTS + this.multipliers.wreckPointsBonus) * this.multipliers.scoreMul);
           } else {
-            name = DANGER_NAMES[Math.floor(Math.random() * DANGER_NAMES.length)];
+            name = this.randomPick(DANGER_NAMES);
             points = GAME_CONFIG.SCORE.DANGER_PENALTY;
           }
           targets.push({
@@ -115,7 +153,7 @@ export class TargetGenerator {
             discovered: false,
             collected: false,
             shape: this.randomShape(type),
-            rotation: Math.random() * Math.PI * 2,
+            rotation: this.randomRotation(),
           });
           return;
         }
