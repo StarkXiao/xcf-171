@@ -10,6 +10,7 @@ export interface ScoreEvent {
 
 export interface ScoreSystemParams {
   initialLivesBonus?: number;
+  initialLivesOverride?: number | null;
   maxSonarCharges?: number;
   initialSonarBonus?: number;
   scoreMul?: number;
@@ -20,11 +21,18 @@ export class ScoreSystem {
   private scoreHistory: number[] = [];
   private onStateChange?: (state: GameState) => void;
   private onScoreEvent?: (event: ScoreEvent) => void;
-  private params: Required<ScoreSystemParams>;
+  private params: {
+    initialLivesBonus: number;
+    initialLivesOverride: number | null;
+    maxSonarCharges: number;
+    initialSonarBonus: number;
+    scoreMul: number;
+  };
 
   constructor(params: ScoreSystemParams = {}) {
     this.params = {
       initialLivesBonus: params.initialLivesBonus ?? 0,
+      initialLivesOverride: params.initialLivesOverride !== undefined ? params.initialLivesOverride : null,
       maxSonarCharges: params.maxSonarCharges ?? GAME_CONFIG.SONAR.MAX_CHARGES,
       initialSonarBonus: params.initialSonarBonus ?? 0,
       scoreMul: params.scoreMul ?? 1,
@@ -35,6 +43,7 @@ export class ScoreSystem {
   setParams(params: ScoreSystemParams) {
     this.params = {
       initialLivesBonus: params.initialLivesBonus ?? this.params.initialLivesBonus,
+      initialLivesOverride: params.initialLivesOverride !== undefined ? params.initialLivesOverride : this.params.initialLivesOverride,
       maxSonarCharges: params.maxSonarCharges ?? this.params.maxSonarCharges,
       initialSonarBonus: params.initialSonarBonus ?? this.params.initialSonarBonus,
       scoreMul: params.scoreMul ?? this.params.scoreMul,
@@ -43,15 +52,19 @@ export class ScoreSystem {
 
   private createInitialState(): GameState {
     const maxCharges = this.params.maxSonarCharges;
+    const lives = this.params.initialLivesOverride !== null
+      ? this.params.initialLivesOverride
+      : GAME_CONFIG.GAME.INITIAL_LIVES + this.params.initialLivesBonus;
+    const effectiveLives = Math.max(1, lives);
     return {
       score: 0,
-      lives: GAME_CONFIG.GAME.INITIAL_LIVES + this.params.initialLivesBonus,
+      lives: effectiveLives,
       level: 1,
       isPlaying: false,
       isPaused: false,
       isGameOver: false,
-      sonarCharges: maxCharges + this.params.initialSonarBonus,
-      maxSonarCharges: maxCharges,
+      sonarCharges: Math.max(1, maxCharges + this.params.initialSonarBonus),
+      maxSonarCharges: Math.max(1, maxCharges),
       discoveredTargets: 0,
       totalTargets: 0,
     };

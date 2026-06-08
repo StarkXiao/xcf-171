@@ -335,6 +335,7 @@ export function applyChallengeRules(
   challenge: DailyChallengeConfig,
   effects: {
     livesBonus: number;
+    livesOverride: number | null;
     maxSonarCharges: number;
     sonarRadius: number;
     sonarSpeed: number;
@@ -346,10 +347,10 @@ export function applyChallengeRules(
   for (const rule of challenge.rules) {
     switch (rule.type) {
       case 'limited_lives':
-        effects.livesBonus = Math.max(-1, effects.livesBonus - 1);
+        effects.livesOverride = 2;
         break;
       case 'limited_sonar':
-        effects.maxSonarCharges = Math.max(2, effects.maxSonarCharges - 2);
+        effects.maxSonarCharges = 3;
         break;
       case 'no_recharge':
         effects.disableRecharge = true;
@@ -367,7 +368,7 @@ export function applyChallengeRules(
         effects.sonarRadius *= 0.7;
         break;
       case 'single_life':
-        effects.livesBonus = -99;
+        effects.livesOverride = 1;
         break;
     }
   }

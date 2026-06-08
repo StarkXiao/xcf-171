@@ -75,6 +75,7 @@ export class GameController {
 
     let challengeEffects = {
       livesBonus: this.currentEffects.livesBonus,
+      livesOverride: null as number | null,
       maxSonarCharges: this.currentEffects.maxSonarCharges,
       sonarRadius: this.currentEffects.sonarRadius,
       sonarSpeed: this.currentEffects.sonarSpeed,
@@ -106,6 +107,7 @@ export class GameController {
     );
     this.scoreSystem.setParams({
       initialLivesBonus: challengeEffects.livesBonus,
+      initialLivesOverride: challengeEffects.livesOverride,
       maxSonarCharges: challengeEffects.maxSonarCharges,
       initialSonarBonus: this.currentEffects.initialSonarBonus,
       scoreMul: challengeEffects.scoreMul,

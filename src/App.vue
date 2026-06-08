@@ -39,7 +39,7 @@
     />
 
     <DailyChallengeDetail
-      v-if="showDailyLeaderboard && !gameStarted"
+      v-if="showDailyLeaderboard"
       :challenge="dailyChallenge!"
       :leaderboard="dailyChallengeSystem.getLeaderboard()"
       :history="dailyChallengeSystem.getHistory()"
@@ -117,6 +117,7 @@ const showCollection = ref(false);
 const showPrep = ref(false);
 const showDailyChallenge = ref(false);
 const showDailyLeaderboard = ref(false);
+const leaderboardOpenedFromGameOver = ref(false);
 const isDailyChallengeMode = ref(false);
 const isDailyNewRecord = ref(false);
 const sessionUnlocks = ref<UnlockEvent[]>([]);
@@ -266,16 +267,21 @@ const closeDailyChallenge = () => {
 };
 
 const openDailyLeaderboard = () => {
+  leaderboardOpenedFromGameOver.value = false;
   showDailyLeaderboard.value = true;
 };
 
 const openDailyLeaderboardFromGameOver = () => {
+  leaderboardOpenedFromGameOver.value = true;
   refreshDailyChallenge();
   showDailyLeaderboard.value = true;
 };
 
 const closeDailyLeaderboard = () => {
   showDailyLeaderboard.value = false;
+  if (leaderboardOpenedFromGameOver.value) {
+    leaderboardOpenedFromGameOver.value = false;
+  }
 };
 
 const handleRestart = () => {
