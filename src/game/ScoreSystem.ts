@@ -8,26 +8,50 @@ export interface ScoreEvent {
   position: { x: number; y: number };
 }
 
+export interface ScoreSystemParams {
+  initialLivesBonus?: number;
+  maxSonarCharges?: number;
+  initialSonarBonus?: number;
+  scoreMul?: number;
+}
+
 export class ScoreSystem {
   private state: GameState;
   private scoreHistory: number[] = [];
   private onStateChange?: (state: GameState) => void;
   private onScoreEvent?: (event: ScoreEvent) => void;
+  private params: Required<ScoreSystemParams>;
 
-  constructor() {
+  constructor(params: ScoreSystemParams = {}) {
+    this.params = {
+      initialLivesBonus: params.initialLivesBonus ?? 0,
+      maxSonarCharges: params.maxSonarCharges ?? GAME_CONFIG.SONAR.MAX_CHARGES,
+      initialSonarBonus: params.initialSonarBonus ?? 0,
+      scoreMul: params.scoreMul ?? 1,
+    };
     this.state = this.createInitialState();
   }
 
+  setParams(params: ScoreSystemParams) {
+    this.params = {
+      initialLivesBonus: params.initialLivesBonus ?? this.params.initialLivesBonus,
+      maxSonarCharges: params.maxSonarCharges ?? this.params.maxSonarCharges,
+      initialSonarBonus: params.initialSonarBonus ?? this.params.initialSonarBonus,
+      scoreMul: params.scoreMul ?? this.params.scoreMul,
+    };
+  }
+
   private createInitialState(): GameState {
+    const maxCharges = this.params.maxSonarCharges;
     return {
       score: 0,
-      lives: GAME_CONFIG.GAME.INITIAL_LIVES,
+      lives: GAME_CONFIG.GAME.INITIAL_LIVES + this.params.initialLivesBonus,
       level: 1,
       isPlaying: false,
       isPaused: false,
       isGameOver: false,
-      sonarCharges: GAME_CONFIG.SONAR.MAX_CHARGES,
-      maxSonarCharges: GAME_CONFIG.SONAR.MAX_CHARGES,
+      sonarCharges: maxCharges + this.params.initialSonarBonus,
+      maxSonarCharges: maxCharges,
       discoveredTargets: 0,
       totalTargets: 0,
     };
@@ -56,7 +80,11 @@ export class ScoreSystem {
   collectTarget(target: Target): boolean {
     if (!this.state.isPlaying || this.state.isGameOver) return false;
 
-    this.state.score += target.points;
+    let points = target.points;
+    if (target.type !== 'danger') {
+      points = Math.round(target.points);
+    }
+    this.state.score += points;
     if (this.state.score < 0) this.state.score = 0;
 
     if (target.type === 'danger') {
@@ -111,7 +139,7 @@ export class ScoreSystem {
         this.state.sonarCharges + 2,
         this.state.maxSonarCharges
       );
-      const bonus = this.state.level * GAME_CONFIG.SCORE.BONUS_PER_LEVEL;
+      const bonus = Math.round(this.state.level * GAME_CONFIG.SCORE.BONUS_PER_LEVEL * this.params.scoreMul);
       this.state.score += bonus;
       this.onScoreEvent?.({
         points: bonus,

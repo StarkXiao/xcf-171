@@ -3,13 +3,39 @@ import { GAME_CONFIG, CREATURE_NAMES, WRECK_NAMES, DANGER_NAMES } from '../confi
 
 let nextId = 1;
 
+export interface TargetMultipliers {
+  creatureCountMul: number;
+  wreckCountMul: number;
+  dangerCountMul: number;
+  creaturePointsBonus: number;
+  wreckPointsBonus: number;
+  scoreMul: number;
+}
+
 export class TargetGenerator {
   private width: number;
   private height: number;
+  private multipliers: TargetMultipliers = {
+    creatureCountMul: 1,
+    wreckCountMul: 1,
+    dangerCountMul: 1,
+    creaturePointsBonus: 0,
+    wreckPointsBonus: 0,
+    scoreMul: 1,
+  };
 
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
+  }
+
+  setSize(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+  }
+
+  setMultipliers(mults: TargetMultipliers) {
+    this.multipliers = mults;
   }
 
   private randomPosition(margin: number): Position {
@@ -53,9 +79,13 @@ export class TargetGenerator {
     const minR = GAME_CONFIG.TARGETS.MIN_RADIUS;
     const maxR = GAME_CONFIG.TARGETS.MAX_RADIUS;
 
-    const creatureCount = GAME_CONFIG.TARGETS.CREATURE_COUNT + Math.floor(level / 2);
-    const wreckCount = GAME_CONFIG.TARGETS.WRECK_COUNT + Math.floor(level / 3);
-    const dangerCount = GAME_CONFIG.TARGETS.DANGER_COUNT + Math.floor(level / 2);
+    const baseCreature = GAME_CONFIG.TARGETS.CREATURE_COUNT + Math.floor(level / 2);
+    const baseWreck = GAME_CONFIG.TARGETS.WRECK_COUNT + Math.floor(level / 3);
+    const baseDanger = GAME_CONFIG.TARGETS.DANGER_COUNT + Math.floor(level / 2);
+
+    const creatureCount = Math.max(1, Math.round(baseCreature * this.multipliers.creatureCountMul));
+    const wreckCount = Math.max(1, Math.round(baseWreck * this.multipliers.wreckCountMul));
+    const dangerCount = Math.max(1, Math.round(baseDanger * this.multipliers.dangerCountMul));
 
     const addTarget = (type: TargetType) => {
       let attempts = 0;
@@ -67,10 +97,10 @@ export class TargetGenerator {
           let points = 0;
           if (type === 'creature') {
             name = CREATURE_NAMES[Math.floor(Math.random() * CREATURE_NAMES.length)];
-            points = GAME_CONFIG.SCORE.CREATURE_POINTS;
+            points = Math.round((GAME_CONFIG.SCORE.CREATURE_POINTS + this.multipliers.creaturePointsBonus) * this.multipliers.scoreMul);
           } else if (type === 'wreck') {
             name = WRECK_NAMES[Math.floor(Math.random() * WRECK_NAMES.length)];
-            points = GAME_CONFIG.SCORE.WRECK_POINTS;
+            points = Math.round((GAME_CONFIG.SCORE.WRECK_POINTS + this.multipliers.wreckPointsBonus) * this.multipliers.scoreMul);
           } else {
             name = DANGER_NAMES[Math.floor(Math.random() * DANGER_NAMES.length)];
             points = GAME_CONFIG.SCORE.DANGER_PENALTY;

@@ -11,11 +11,19 @@
     />
 
     <StartScreen
-      v-if="!gameStarted && !showCollection"
+      v-if="!gameStarted && !showCollection && !showPrep"
       :high-score="highScore"
       :collection-stats="collectionStats"
       @start="handleStart"
       @open-collection="openCollection"
+      @open-prep="openPrep"
+    />
+
+    <ExpeditionPrep
+      v-if="showPrep && !gameStarted && !showCollection"
+      :initial-loadout="currentLoadout"
+      @start="handlePrepStart"
+      @back="closePrep"
     />
 
     <GameOverScreen
@@ -49,15 +57,17 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
+import { DEFAULT_LOADOUT } from './config/expeditionConfig';
 import GameHUD from './components/GameHUD.vue';
 import StartScreen from './components/StartScreen.vue';
 import GameOverScreen from './components/GameOverScreen.vue';
 import FloatingScore from './components/FloatingScore.vue';
 import CollectionCenter from './components/CollectionCenter.vue';
+import ExpeditionPrep from './components/ExpeditionPrep.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -67,7 +77,9 @@ const gameStarted = ref(false);
 const showHint = ref(true);
 const highScore = ref(0);
 const showCollection = ref(false);
+const showPrep = ref(false);
 const sessionUnlocks = ref<UnlockEvent[]>([]);
+const currentLoadout = ref<ExpeditionLoadout>({ ...DEFAULT_LOADOUT });
 
 const collectionSystem = new CollectionSystem();
 
@@ -137,13 +149,37 @@ const handleLevelUp = (_newLevel: number) => {};
 
 const handleStart = () => {
   gameStarted.value = true;
+  gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
   setTimeout(() => {
     showHint.value = false;
   }, 5000);
 };
 
+const handlePrepStart = (loadout: ExpeditionLoadout) => {
+  currentLoadout.value = { ...loadout };
+  try {
+    localStorage.setItem('deepSeaSonar_loadout', JSON.stringify(loadout));
+  } catch (_e) {}
+  showPrep.value = false;
+  gameStarted.value = true;
+  gameController?.setLoadout(currentLoadout.value);
+  gameController?.startGame();
+  setTimeout(() => {
+    showHint.value = false;
+  }, 5000);
+};
+
+const openPrep = () => {
+  showPrep.value = true;
+};
+
+const closePrep = () => {
+  showPrep.value = false;
+};
+
 const handleRestart = () => {
+  gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
 };
 
@@ -212,14 +248,24 @@ const processInteraction = (worldPos: { x: number; y: number }, _screenX: number
 
 onMounted(() => {
   try {
-    const saved = localStorage.getItem('deepSeaSonar_highScore');
-    if (saved) highScore.value = parseInt(saved, 10) || 0;
+    const savedScore = localStorage.getItem('deepSeaSonar_highScore');
+    if (savedScore) highScore.value = parseInt(savedScore, 10) || 0;
+    const savedLoadout = localStorage.getItem('deepSeaSonar_loadout');
+    if (savedLoadout) {
+      try {
+        const parsed = JSON.parse(savedLoadout);
+        if (parsed && parsed.submarine && parsed.sonarChip && parsed.supplyPack) {
+          currentLoadout.value = parsed;
+        }
+      } catch (_e) {}
+    }
   } catch (_e) {}
 
   refreshCollection();
 
   if (canvasRef.value) {
     gameController = new GameController(canvasRef.value, collectionSystem);
+    gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,
       handleScoreEvent,

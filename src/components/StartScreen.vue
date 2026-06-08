@@ -43,10 +43,16 @@
         </div>
       </div>
 
-      <button class="start-btn" @click="$emit('start')">
-        <span class="btn-text">开始探测</span>
-        <span class="btn-glow"></span>
-      </button>
+      <div class="btn-row">
+        <button class="prep-btn" @click="$emit('openPrep')">
+          <span class="prep-icon">⚙️</span>
+          <span class="prep-label">远征筹备</span>
+        </button>
+        <button class="start-btn" @click="$emit('start')">
+          <span class="btn-text">开始探测</span>
+          <span class="btn-glow"></span>
+        </button>
+      </div>
 
       <div class="high-score" v-if="highScore > 0">
         最高分: <span class="high-score-value">{{ highScore }}</span>
@@ -90,6 +96,7 @@ const props = defineProps<{
 defineEmits<{
   (e: 'start'): void;
   (e: 'openCollection'): void;
+  (e: 'openPrep'): void;
 }>();
 
 const collectionPercent = computed(() => {
@@ -248,9 +255,51 @@ const collectionPercent = computed(() => {
   box-shadow: 0 0 8px rgba(255, 51, 85, 0.6);
 }
 
+.btn-row {
+  display: flex;
+  gap: 10px;
+}
+
+.prep-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(0, 60, 100, 0.7), rgba(0, 30, 70, 0.8));
+  border: 1px solid rgba(0, 255, 170, 0.4);
+  border-radius: 12px;
+  cursor: pointer;
+  color: rgba(0, 255, 200, 0.95);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.prep-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 100, 150, 0.7), rgba(0, 50, 100, 0.8));
+  border-color: rgba(0, 255, 170, 0.7);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 255, 200, 0.2);
+}
+
+.prep-btn:active {
+  transform: translateY(0);
+}
+
+.prep-icon {
+  font-size: 20px;
+}
+
+.prep-label {
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: bold;
+}
+
 .start-btn {
   position: relative;
-  width: 100%;
+  flex: 1;
   padding: 16px 32px;
   font-size: 18px;
   font-weight: bold;

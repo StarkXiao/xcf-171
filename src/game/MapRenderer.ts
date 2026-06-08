@@ -368,4 +368,17 @@ export class MapRenderer {
     this.discoveredAreas = [];
     this.updateDiscoveredMask();
   }
+
+  public setMapSize(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+    this.drawBackground();
+    this.drawGrid();
+    this.createFog();
+    this.clearDiscovered();
+  }
+
+  public getMapSize(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
+  }
 }

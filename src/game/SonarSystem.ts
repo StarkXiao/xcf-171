@@ -8,6 +8,15 @@ export class SonarSystem {
   private waves: SonarWave[] = [];
   private echoPoints: EchoPoint[] = [];
   private onEchoGenerated?: (echos: EchoPoint[]) => void;
+  private maxRadius: number = GAME_CONFIG.SONAR.MAX_RADIUS;
+  private speed: number = GAME_CONFIG.SONAR.SPEED;
+  private precisionBonus: number = 0;
+
+  setParams(maxRadius: number, speed: number, precisionBonus: number = 0) {
+    this.maxRadius = maxRadius;
+    this.speed = speed;
+    this.precisionBonus = precisionBonus;
+  }
 
   setEchoCallback(callback: (echos: EchoPoint[]) => void) {
     this.onEchoGenerated = callback;
@@ -18,8 +27,8 @@ export class SonarSystem {
       id: waveIdCounter++,
       position: { ...position },
       radius: 0,
-      maxRadius: GAME_CONFIG.SONAR.MAX_RADIUS,
-      speed: GAME_CONFIG.SONAR.SPEED,
+      maxRadius: this.maxRadius,
+      speed: this.speed,
       active: true,
       alpha: 1,
     };

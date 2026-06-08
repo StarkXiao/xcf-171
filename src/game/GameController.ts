@@ -1,5 +1,6 @@
-import type { Position, Target, GameState, UnlockEvent } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
+import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
 import { MapRenderer } from './MapRenderer';
 import { SonarSystem } from './SonarSystem';
 import { TargetGenerator } from './TargetGenerator';
@@ -20,6 +21,8 @@ export class GameController {
   private lastRechargeTime: number = 0;
   private collectedCount: number = 0;
   private collectedCreaturesAndWrecks: number = 0;
+  private currentLoadout: ExpeditionLoadout;
+  private currentEffects: LoadoutEffects;
 
   private onStateChange?: (state: GameState) => void;
   private onScoreEvent?: (event: ScoreEvent) => void;
@@ -28,10 +31,18 @@ export class GameController {
   private onUnlock?: (event: UnlockEvent) => void;
 
   constructor(container: HTMLElement, collectionSystem?: CollectionSystem) {
+    this.currentLoadout = { ...DEFAULT_LOADOUT };
+    this.currentEffects = computeLoadoutEffects(this.currentLoadout);
+
     this.renderer = new MapRenderer(container, GAME_CONFIG.MAP_WIDTH, GAME_CONFIG.MAP_HEIGHT);
     this.sonar = new SonarSystem();
     this.targetGenerator = new TargetGenerator(GAME_CONFIG.MAP_WIDTH, GAME_CONFIG.MAP_HEIGHT);
-    this.scoreSystem = new ScoreSystem();
+    this.scoreSystem = new ScoreSystem({
+      initialLivesBonus: this.currentEffects.livesBonus,
+      maxSonarCharges: this.currentEffects.maxSonarCharges,
+      initialSonarBonus: this.currentEffects.initialSonarBonus,
+      scoreMul: this.currentEffects.scoreMul,
+    });
     this.collection = collectionSystem ?? new CollectionSystem();
 
     this.playerPosition = {
@@ -40,6 +51,37 @@ export class GameController {
     };
 
     this.sonar.setEchoCallback(() => {});
+  }
+
+  setLoadout(loadout: ExpeditionLoadout) {
+    this.currentLoadout = { ...loadout };
+    this.currentEffects = computeLoadoutEffects(this.currentLoadout);
+
+    this.renderer.setMapSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
+    this.targetGenerator.setSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
+    this.targetGenerator.setMultipliers({
+      creatureCountMul: this.currentEffects.creatureCountMul,
+      wreckCountMul: this.currentEffects.wreckCountMul,
+      dangerCountMul: this.currentEffects.dangerCountMul,
+      creaturePointsBonus: this.currentEffects.creaturePointsBonus,
+      wreckPointsBonus: this.currentEffects.wreckPointsBonus,
+      scoreMul: this.currentEffects.scoreMul,
+    });
+    this.sonar.setParams(
+      this.currentEffects.sonarRadius,
+      this.currentEffects.sonarSpeed,
+      this.currentEffects.precisionBonus
+    );
+    this.scoreSystem.setParams({
+      initialLivesBonus: this.currentEffects.livesBonus,
+      maxSonarCharges: this.currentEffects.maxSonarCharges,
+      initialSonarBonus: this.currentEffects.initialSonarBonus,
+      scoreMul: this.currentEffects.scoreMul,
+    });
+  }
+
+  getLoadout(): ExpeditionLoadout {
+    return { ...this.currentLoadout };
   }
 
   setCallbacks(
@@ -127,12 +169,13 @@ export class GameController {
 
     const worldPos = { ...position };
     this.sonar.emitSonar(worldPos);
-    this.renderer.addDiscoveredArea(worldPos, GAME_CONFIG.SONAR.MAX_RADIUS);
+    this.renderer.addDiscoveredArea(worldPos, this.currentEffects.sonarRadius);
     return true;
   }
 
   movePlayer(targetY: number) {
-    targetY = Math.max(50, Math.min(GAME_CONFIG.MAP_HEIGHT - 50, targetY));
+    const mapSize = this.renderer.getMapSize();
+    targetY = Math.max(50, Math.min(mapSize.height - 50, targetY));
     this.playerPosition.y += (targetY - this.playerPosition.y) * 0.15;
   }
 

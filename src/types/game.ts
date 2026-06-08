@@ -75,3 +75,70 @@ export interface GameState {
   discoveredTargets: number;
   totalTargets: number;
 }
+
+export type SubmarineTier = 'scout' | 'standard' | 'heavy';
+export type SonarChipTier = 'basic' | 'precision' | 'wide';
+export type SupplyPackTier = 'light' | 'standard' | 'premium';
+
+export interface Submarine {
+  id: SubmarineTier;
+  name: string;
+  description: string;
+  icon: string;
+  stats: {
+    mapHeightMul: number;
+    livesBonus: number;
+    moveSpeedMul: number;
+  };
+}
+
+export interface SonarChip {
+  id: SonarChipTier;
+  name: string;
+  description: string;
+  icon: string;
+  stats: {
+    sonarRadiusMul: number;
+    sonarSpeedMul: number;
+    maxChargesBonus: number;
+    precisionBonus: number;
+  };
+}
+
+export interface SupplyPack {
+  id: SupplyPackTier;
+  name: string;
+  description: string;
+  icon: string;
+  stats: {
+    creatureCountMul: number;
+    wreckCountMul: number;
+    dangerCountMul: number;
+    scoreMul: number;
+    creaturePointsBonus: number;
+    wreckPointsBonus: number;
+    initialSonarBonus: number;
+  };
+}
+
+export interface ExpeditionLoadout {
+  submarine: SubmarineTier;
+  sonarChip: SonarChipTier;
+  supplyPack: SupplyPackTier;
+}
+
+export interface LoadoutEffects {
+  mapHeight: number;
+  livesBonus: number;
+  sonarRadius: number;
+  sonarSpeed: number;
+  maxSonarCharges: number;
+  creatureCountMul: number;
+  wreckCountMul: number;
+  dangerCountMul: number;
+  scoreMul: number;
+  creaturePointsBonus: number;
+  wreckPointsBonus: number;
+  initialSonarBonus: number;
+  precisionBonus: number;
+}
