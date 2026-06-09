@@ -1,11 +1,12 @@
 import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, DailyChallengeConfig } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
-import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
+import { computeLoadoutEffects, DEFAULT_LOADOUT, applyTechEffects } from '../config/expeditionConfig';
 import { MapRenderer } from './MapRenderer';
 import { SonarSystem } from './SonarSystem';
 import { TargetGenerator } from './TargetGenerator';
 import { ScoreSystem, type ScoreEvent } from './ScoreSystem';
 import { CollectionSystem } from './CollectionSystem';
+import { ResearchStationSystem } from './ResearchStationSystem';
 import { applyChallengeRules } from './DailyChallengeSystem';
 import * as PIXI from 'pixi.js';
 
@@ -15,6 +16,7 @@ export class GameController {
   private targetGenerator: TargetGenerator;
   private scoreSystem: ScoreSystem;
   private collection: CollectionSystem;
+  private researchStation: ResearchStationSystem;
 
   private targets: Target[] = [];
   private playerPosition: Position;
@@ -33,9 +35,13 @@ export class GameController {
   private onLevelUp?: (newLevel: number) => void;
   private onUnlock?: (event: UnlockEvent) => void;
 
-  constructor(container: HTMLElement, collectionSystem?: CollectionSystem) {
+  constructor(container: HTMLElement, collectionSystem?: CollectionSystem, researchStationSystem?: ResearchStationSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
-    this.currentEffects = computeLoadoutEffects(this.currentLoadout);
+    this.researchStation = researchStationSystem ?? new ResearchStationSystem();
+    this.currentEffects = applyTechEffects(
+      computeLoadoutEffects(this.currentLoadout),
+      this.researchStation.getAggregatedEffects()
+    );
 
     this.renderer = new MapRenderer(container, GAME_CONFIG.MAP_WIDTH, GAME_CONFIG.MAP_HEIGHT);
     this.sonar = new SonarSystem();
@@ -71,7 +77,8 @@ export class GameController {
 
   setLoadout(loadout: ExpeditionLoadout) {
     this.currentLoadout = { ...loadout };
-    this.currentEffects = computeLoadoutEffects(this.currentLoadout);
+    const baseEffects = computeLoadoutEffects(this.currentLoadout);
+    this.currentEffects = applyTechEffects(baseEffects, this.researchStation.getAggregatedEffects());
 
     let challengeEffects = {
       livesBonus: this.currentEffects.livesBonus,
@@ -159,6 +166,18 @@ export class GameController {
     }
 
     this.renderer.addDiscoveredArea(this.playerPosition, 120);
+
+    if (this.currentEffects.intelligenceRadar) {
+      this.renderer.addDiscoveredArea(this.playerPosition, 250);
+      for (const target of this.targets) {
+        const dx = target.position.x - this.playerPosition.x;
+        const dy = target.position.y - this.playerPosition.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= 250) {
+          target.discovered = true;
+        }
+      }
+    }
   }
 
   private startGameLoop() {
@@ -187,7 +206,8 @@ export class GameController {
 
     if (!this.disableSonarRecharge) {
       const now = Date.now();
-      if (now - this.lastRechargeTime >= GAME_CONFIG.SONAR.RECHARGE_TIME) {
+      const rechargeTime = GAME_CONFIG.SONAR.RECHARGE_TIME * this.currentEffects.sonarRechargeTimeMul;
+      if (now - this.lastRechargeTime >= rechargeTime) {
         this.scoreSystem.rechargeSonar();
         this.lastRechargeTime = now;
       }

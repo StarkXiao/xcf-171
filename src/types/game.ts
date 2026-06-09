@@ -141,6 +141,8 @@ export interface LoadoutEffects {
   wreckPointsBonus: number;
   initialSonarBonus: number;
   precisionBonus: number;
+  sonarRechargeTimeMul: number;
+  intelligenceRadar: boolean;
 }
 
 export type DailyChallengeRuleType =
@@ -195,4 +197,56 @@ export interface DailyChallengeSaveData {
   completedDates: string[];
   history: DailyChallengeRecord[];
   playerName: string;
+}
+
+export type TechCategory = 'sonar' | 'power' | 'radar' | 'core';
+
+export type TechEffectType =
+  | 'sonarRadiusBonus'
+  | 'maxChargesBonus'
+  | 'rechargeSpeedBonus'
+  | 'intelligenceRadar'
+  | 'scoreBonus'
+  | 'livesBonus'
+  | 'initialSonarBonus'
+  | 'creaturePointsBonus'
+  | 'wreckPointsBonus';
+
+export interface TechNode {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: TechCategory;
+  tier: number;
+  cost: number;
+  requires: string[];
+  effects: Partial<Record<TechEffectType, number>>;
+}
+
+export interface TechProgress {
+  unlocked: string[];
+  expeditionPoints: number;
+  totalExpeditionPoints: number;
+  expeditionsCompleted: number;
+}
+
+export interface ResearchStationStats {
+  expeditionPoints: number;
+  totalExpeditionPoints: number;
+  expeditionsCompleted: number;
+  unlockedCount: number;
+  totalTechCount: number;
+  categoryProgress: Record<TechCategory, { unlocked: number; total: number }>;
+}
+
+export interface ExpeditionReward {
+  points: number;
+  breakdown: {
+    base: number;
+    level: number;
+    discoveries: number;
+    score: number;
+    dailyBonus: number;
+  };
 }

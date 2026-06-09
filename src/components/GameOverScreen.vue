@@ -56,6 +56,43 @@
         <span class="rank-badge" :class="rankClass">{{ rank }}</span>
       </div>
 
+      <div v-if="expeditionReward" class="expedition-reward-section">
+        <div class="expedition-title">
+          <span class="expedition-icon">⚡</span>
+          <span>航次积分奖励</span>
+        </div>
+        <div class="expedition-total">
+          <span class="expedition-total-label">获得积分</span>
+          <span class="expedition-total-value">+{{ expeditionReward.points }}</span>
+        </div>
+        <div class="expedition-breakdown">
+          <div class="breakdown-item">
+            <span class="breakdown-label">基础奖励</span>
+            <span class="breakdown-value">+{{ expeditionReward.breakdown.base }}</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">关卡奖励</span>
+            <span class="breakdown-value">+{{ expeditionReward.breakdown.level }}</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">发现奖励</span>
+            <span class="breakdown-value">+{{ expeditionReward.breakdown.discoveries }}</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">得分奖励</span>
+            <span class="breakdown-value">+{{ expeditionReward.breakdown.score }}</span>
+          </div>
+          <div class="breakdown-item" v-if="expeditionReward.breakdown.dailyBonus > 0">
+            <span class="breakdown-label daily">每日挑战加成</span>
+            <span class="breakdown-value daily">+{{ expeditionReward.breakdown.dailyBonus }}</span>
+          </div>
+        </div>
+        <div class="expedition-total-points">
+          <span>当前总积分：</span>
+          <span class="total-points-value">{{ formatNumber(totalExpeditionPoints) }}</span>
+        </div>
+      </div>
+
       <div v-if="sessionUnlocks.length > 0" class="unlocks-section">
         <div class="unlocks-title">
           <span class="unlocks-icon">📖</span>
@@ -98,7 +135,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { UnlockEvent } from '../types/game';
+import type { UnlockEvent, ExpeditionReward } from '../types/game';
 
 const props = defineProps<{
   score: number;
@@ -112,6 +149,8 @@ const props = defineProps<{
   dailyPlayerRank?: number | null;
   dailyAttempts?: number;
   isDailyNewRecord?: boolean;
+  expeditionReward?: ExpeditionReward | null;
+  totalExpeditionPoints?: number;
 }>();
 
 defineEmits<{
@@ -360,6 +399,105 @@ const formatNumber = (n: number) => n.toLocaleString();
 
 .btn-icon {
   font-size: 18px;
+}
+
+.expedition-reward-section {
+  margin-bottom: 18px;
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.1), rgba(255, 136, 0, 0.1));
+  border: 1px solid rgba(255, 204, 0, 0.35);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.expedition-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 204, 0, 0.95);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.expedition-icon {
+  font-size: 18px;
+}
+
+.expedition-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 204, 0, 0.08);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.expedition-total-label {
+  font-size: 12px;
+  color: rgba(255, 200, 150, 0.6);
+  letter-spacing: 1px;
+}
+
+.expedition-total-value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffcc00;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 12px rgba(255, 204, 0, 0.4);
+}
+
+.expedition-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.breakdown-label {
+  color: rgba(200, 200, 220, 0.55);
+}
+
+.breakdown-label.daily {
+  color: rgba(255, 150, 100, 0.75);
+}
+
+.breakdown-value {
+  color: rgba(255, 220, 150, 0.85);
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+.breakdown-value.daily {
+  color: rgba(255, 180, 120, 0.95);
+}
+
+.expedition-total-points {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 204, 0, 0.15);
+  font-size: 12px;
+  color: rgba(200, 200, 220, 0.55);
+}
+
+.total-points-value {
+  font-size: 15px;
+  font-weight: bold;
+  color: #ffcc66;
+  font-family: 'Courier New', monospace;
 }
 
 .unlocks-section {

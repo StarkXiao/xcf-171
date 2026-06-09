@@ -7,6 +7,7 @@ import type {
   SubmarineTier,
   SonarChipTier,
   SupplyPackTier,
+  TechEffectType,
 } from '../types/game';
 import { GAME_CONFIG } from './gameConfig';
 
@@ -170,5 +171,44 @@ export function computeLoadoutEffects(loadout: ExpeditionLoadout): LoadoutEffect
     wreckPointsBonus: pack.stats.wreckPointsBonus,
     initialSonarBonus: pack.stats.initialSonarBonus,
     precisionBonus: chip.stats.precisionBonus,
+    sonarRechargeTimeMul: 1.0,
+    intelligenceRadar: false,
   };
+}
+
+export function applyTechEffects(
+  baseEffects: LoadoutEffects,
+  techEffects: Partial<Record<TechEffectType, number>>
+): LoadoutEffects {
+  const effects = { ...baseEffects };
+
+  if (techEffects.sonarRadiusBonus) {
+    effects.sonarRadius = effects.sonarRadius * (1 + techEffects.sonarRadiusBonus);
+  }
+  if (techEffects.maxChargesBonus) {
+    effects.maxSonarCharges = effects.maxSonarCharges + techEffects.maxChargesBonus;
+  }
+  if (techEffects.rechargeSpeedBonus) {
+    effects.sonarRechargeTimeMul = effects.sonarRechargeTimeMul * (1 - techEffects.rechargeSpeedBonus);
+  }
+  if (techEffects.scoreBonus) {
+    effects.scoreMul = effects.scoreMul * (1 + techEffects.scoreBonus);
+  }
+  if (techEffects.livesBonus) {
+    effects.livesBonus = effects.livesBonus + techEffects.livesBonus;
+  }
+  if (techEffects.initialSonarBonus) {
+    effects.initialSonarBonus = effects.initialSonarBonus + techEffects.initialSonarBonus;
+  }
+  if (techEffects.creaturePointsBonus) {
+    effects.creaturePointsBonus = effects.creaturePointsBonus + techEffects.creaturePointsBonus;
+  }
+  if (techEffects.wreckPointsBonus) {
+    effects.wreckPointsBonus = effects.wreckPointsBonus + techEffects.wreckPointsBonus;
+  }
+  if (techEffects.intelligenceRadar) {
+    effects.intelligenceRadar = true;
+  }
+
+  return effects;
 }

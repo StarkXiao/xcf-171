@@ -71,8 +71,37 @@
         </button>
       </div>
 
-      <div class="high-score" v-if="highScore > 0">
-        最高分: <span class="high-score-value">{{ highScore }}</span>
+      <div class="stats-row">
+        <div class="stat-item" v-if="highScore > 0">
+          <span class="stat-label">最高分</span>
+          <span class="stat-value high-score">{{ formatNumber(highScore) }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">航次积分</span>
+          <span class="stat-value points">{{ formatNumber(expeditionPoints) }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">完成航次</span>
+          <span class="stat-value">{{ expeditionsCompleted }}</span>
+        </div>
+      </div>
+
+      <div class="research-entry" @click="$emit('openResearch')">
+        <div class="research-icon-wrap">
+          <span class="research-icon">🔬</span>
+          <span class="research-badge" v-if="unlockedTechCount > 0">{{ unlockedTechCount }}</span>
+        </div>
+        <div class="research-info">
+          <div class="research-title">研究站升级</div>
+          <div class="research-subtitle">
+            已解锁 {{ unlockedTechCount }}/{{ totalTechCount }} 项科技
+          </div>
+        </div>
+        <div class="research-points">
+          <span class="research-points-icon">⚡</span>
+          <span class="research-points-value">{{ formatNumber(expeditionPoints) }}</span>
+        </div>
+        <div class="research-arrow">›</div>
       </div>
 
       <div class="collection-entry" @click="$emit('openCollection')">
@@ -111,6 +140,10 @@ const props = defineProps<{
   dailyChallengeCompleted?: boolean;
   dailyChallengeTitle?: string;
   dailyBestScore?: number;
+  expeditionPoints: number;
+  expeditionsCompleted: number;
+  unlockedTechCount: number;
+  totalTechCount: number;
 }>();
 
 defineEmits<{
@@ -118,12 +151,15 @@ defineEmits<{
   (e: 'openCollection'): void;
   (e: 'openPrep'): void;
   (e: 'openDailyChallenge'): void;
+  (e: 'openResearch'): void;
 }>();
 
 const collectionPercent = computed(() => {
   if (props.collectionStats.total === 0) return 0;
   return Math.round((props.collectionStats.unlocked / props.collectionStats.total) * 100);
 });
+
+const formatNumber = (n: number) => n.toLocaleString();
 </script>
 
 <style scoped>
@@ -364,18 +400,171 @@ const collectionPercent = computed(() => {
   100% { transform: translateX(100%); }
 }
 
-.high-score {
-  margin-top: 16px;
-  font-size: 13px;
-  color: rgba(0, 255, 200, 0.6);
+.stats-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stats-row .stat-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 8px;
+  background: rgba(0, 40, 60, 0.5);
+  border: 1px solid rgba(0, 255, 170, 0.2);
+  border-radius: 10px;
+}
+
+.stats-row .stat-label {
+  font-size: 10px;
+  color: rgba(200, 220, 255, 0.5);
   letter-spacing: 1px;
 }
 
-.high-score-value {
-  color: #ffcc00;
+.stats-row .stat-value {
+  font-size: 18px;
   font-weight: bold;
-  font-size: 16px;
-  margin-left: 4px;
+  color: #00ffcc;
+  font-family: 'Courier New', monospace;
+}
+
+.stats-row .stat-value.high-score {
+  color: #ffcc00;
+}
+
+.stats-row .stat-value.points {
+  color: #ffaa00;
+}
+
+.research-entry {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(0, 100, 150, 0.15), rgba(0, 80, 180, 0.15));
+  border: 1px solid rgba(100, 200, 255, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.research-entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(100, 200, 255, 0.08),
+    transparent
+  );
+  animation: research-shine 4s ease-in-out infinite;
+}
+
+@keyframes research-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.research-entry:hover {
+  background: linear-gradient(135deg, rgba(0, 130, 180, 0.25), rgba(0, 100, 200, 0.25));
+  border-color: rgba(100, 200, 255, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(100, 200, 255, 0.15);
+}
+
+.research-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.research-icon {
+  font-size: 28px;
+  display: block;
+}
+
+.research-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: linear-gradient(135deg, #00aaff, #0066ff);
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0, 170, 255, 0.5);
+}
+
+.research-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.research-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(150, 220, 255, 0.95);
+  letter-spacing: 2px;
+}
+
+.research-subtitle {
+  font-size: 11px;
+  color: rgba(150, 200, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.research-points {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 10px;
+  background: rgba(255, 204, 0, 0.12);
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.research-points-icon {
+  font-size: 12px;
+}
+
+.research-points-value {
+  font-size: 14px;
+  font-weight: bold;
+  color: #ffcc00;
+  font-family: 'Courier New', monospace;
+}
+
+.research-arrow {
+  font-size: 22px;
+  color: rgba(100, 200, 255, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.research-entry:hover .research-arrow {
+  transform: translateX(3px);
+  color: rgba(100, 200, 255, 0.8);
 }
 
 .collection-entry {

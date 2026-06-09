@@ -13,16 +13,21 @@
     />
 
     <StartScreen
-      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard"
+      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard && !showResearch"
       :high-score="highScore"
       :collection-stats="collectionStats"
       :daily-challenge-completed="dailyChallengeSystem.isTodayCompleted()"
       :daily-challenge-title="dailyChallenge?.title"
       :daily-best-score="dailyChallengeSystem.getTodayBestRecord()?.score ?? 0"
+      :expedition-points="researchStationStats.expeditionPoints"
+      :expeditions-completed="researchStationStats.expeditionsCompleted"
+      :unlocked-tech-count="researchStationStats.unlockedCount"
+      :total-tech-count="researchStationStats.totalTechCount"
       @start="handleStart"
       @open-collection="openCollection"
       @open-prep="openPrep"
       @open-daily-challenge="openDailyChallenge"
+      @open-research="openResearch"
     />
 
     <DailyChallengeScreen
@@ -54,7 +59,7 @@
     />
 
     <GameOverScreen
-      v-if="gameState.isGameOver && !showCollection && !showDailyLeaderboard"
+      v-if="gameState.isGameOver && !showCollection && !showDailyLeaderboard && !showResearch"
       :score="gameState.score"
       :level="gameState.level"
       :discovered="gameState.discoveredTargets"
@@ -66,6 +71,8 @@
       :daily-player-rank="dailyChallengeSystem.getPlayerRank()"
       :daily-attempts="dailyChallengeSystem.getAttemptsToday()"
       :is-daily-new-record="isDailyNewRecord"
+      :expedition-reward="lastExpeditionReward"
+      :total-expedition-points="researchStationStats.expeditionPoints"
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
@@ -80,6 +87,16 @@
       @reset="handleResetCollection"
     />
 
+    <ResearchStation
+      v-if="showResearch"
+      :stats="researchStationStats"
+      :system="researchStationSystem"
+      @close="closeResearch"
+      @unlock="handleTechUnlock"
+      @reset="handleResearchReset"
+      @update="refreshResearchStation"
+    />
+
     <div
       v-if="gameState.isPlaying && !gameState.isGameOver && !showCollection"
       class="touch-area"
@@ -91,10 +108,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, DailyChallengeConfig } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, DailyChallengeConfig, ResearchStationStats, ExpeditionReward } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { DailyChallengeSystem } from './game/DailyChallengeSystem';
+import { ResearchStationSystem } from './game/ResearchStationSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT } from './config/expeditionConfig';
 import GameHUD from './components/GameHUD.vue';
@@ -105,6 +123,7 @@ import CollectionCenter from './components/CollectionCenter.vue';
 import ExpeditionPrep from './components/ExpeditionPrep.vue';
 import DailyChallengeScreen from './components/DailyChallengeScreen.vue';
 import DailyChallengeDetail from './components/DailyChallengeDetail.vue';
+import ResearchStation from './components/ResearchStation.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -117,19 +136,23 @@ const showCollection = ref(false);
 const showPrep = ref(false);
 const showDailyChallenge = ref(false);
 const showDailyLeaderboard = ref(false);
+const showResearch = ref(false);
 const leaderboardOpenedFromGameOver = ref(false);
 const isDailyChallengeMode = ref(false);
 const isDailyNewRecord = ref(false);
 const sessionUnlocks = ref<UnlockEvent[]>([]);
 const currentLoadout = ref<ExpeditionLoadout>({ ...DEFAULT_LOADOUT });
+const lastExpeditionReward = ref<ExpeditionReward | null>(null);
 
 const collectionSystem = new CollectionSystem();
 const dailyChallengeSystem = new DailyChallengeSystem();
+const researchStationSystem = new ResearchStationSystem();
 
 const dailyChallenge = ref<DailyChallengeConfig | null>(null);
 
 const collectionData = ref<CollectionData>(collectionSystem.getData());
 const collectionStats = ref(collectionSystem.getStats());
+const researchStationStats = ref<ResearchStationStats>(researchStationSystem.getStats());
 
 const refreshCollection = () => {
   collectionData.value = collectionSystem.getData();
@@ -138,6 +161,10 @@ const refreshCollection = () => {
 
 const refreshDailyChallenge = () => {
   dailyChallenge.value = dailyChallengeSystem.getTodayChallenge();
+};
+
+const refreshResearchStation = () => {
+  researchStationStats.value = researchStationSystem.getStats();
 };
 
 const gameState = reactive<GameState>({
@@ -185,6 +212,14 @@ const handleUnlockEvent = (_event: UnlockEvent) => {
 const handleGameOver = (finalScore: number) => {
   sessionUnlocks.value = gameController?.getSessionUnlocks() ?? [];
   refreshCollection();
+
+  lastExpeditionReward.value = researchStationSystem.grantExpeditionReward(
+    finalScore,
+    gameState.level,
+    gameState.discoveredTargets,
+    isDailyChallengeMode.value
+  );
+  refreshResearchStation();
 
   if (isDailyChallengeMode.value) {
     const prevBest = dailyChallengeSystem.getTodayBestRecord();
@@ -314,8 +349,11 @@ const handleHome = () => {
   });
   showHint.value = true;
   showDailyLeaderboard.value = false;
+  showResearch.value = false;
+  lastExpeditionReward.value = null;
   refreshCollection();
   refreshDailyChallenge();
+  refreshResearchStation();
 };
 
 const openCollection = () => {
@@ -330,6 +368,23 @@ const closeCollection = () => {
 const handleResetCollection = () => {
   collectionSystem.resetAll();
   refreshCollection();
+};
+
+const openResearch = () => {
+  refreshResearchStation();
+  showResearch.value = true;
+};
+
+const closeResearch = () => {
+  showResearch.value = false;
+};
+
+const handleTechUnlock = (_techId: string) => {
+  refreshResearchStation();
+};
+
+const handleResearchReset = () => {
+  refreshResearchStation();
 };
 
 const getEventPosition = (clientX: number, clientY: number) => {
@@ -380,9 +435,10 @@ onMounted(() => {
 
   refreshCollection();
   refreshDailyChallenge();
+  refreshResearchStation();
 
   if (canvasRef.value) {
-    gameController = new GameController(canvasRef.value, collectionSystem);
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,
