@@ -117,6 +117,18 @@
         <div class="research-arrow">›</div>
       </div>
 
+      <div class="ocean-editor-entry" @click="$emit('openOceanEditor')">
+        <div class="ocean-editor-icon-wrap">
+          <span class="ocean-editor-icon">🗺️</span>
+        </div>
+        <div class="ocean-editor-info">
+          <div class="ocean-editor-title">海域编辑器</div>
+          <div class="ocean-editor-subtitle">自定义目标、危险区和奖励规则</div>
+        </div>
+        <div class="ocean-editor-badge">EDIT</div>
+        <div class="ocean-editor-arrow">›</div>
+      </div>
+
       <div class="collection-entry" @click="$emit('openCollection')">
         <div class="collection-entry-icon">📖</div>
         <div class="collection-entry-info">
@@ -166,6 +178,7 @@ defineEmits<{
   (e: 'openDailyChallenge'): void;
   (e: 'openResearch'): void;
   (e: 'openRescueMode'): void;
+  (e: 'openOceanEditor'): void;
 }>();
 
 const collectionPercent = computed(() => {
@@ -923,5 +936,106 @@ const formatNumber = (n: number) => n.toLocaleString();
 .rescue-entry:hover .rescue-arrow {
   transform: translateX(3px);
   color: rgba(255, 150, 180, 0.8);
+}
+
+.ocean-editor-entry {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(100, 200, 150, 0.08), rgba(50, 180, 120, 0.08));
+  border: 1px solid rgba(100, 255, 180, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.ocean-editor-entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(100, 255, 180, 0.06),
+    transparent
+  );
+  animation: ocean-editor-shine 3.5s ease-in-out infinite;
+}
+
+@keyframes ocean-editor-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.ocean-editor-entry:hover {
+  background: linear-gradient(135deg, rgba(100, 220, 160, 0.15), rgba(60, 200, 140, 0.15));
+  border-color: rgba(100, 255, 180, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(100, 255, 180, 0.15);
+}
+
+.ocean-editor-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ocean-editor-icon {
+  font-size: 28px;
+  display: block;
+}
+
+.ocean-editor-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ocean-editor-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(150, 255, 200, 0.95);
+  letter-spacing: 2px;
+}
+
+.ocean-editor-subtitle {
+  font-size: 11px;
+  color: rgba(150, 220, 190, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ocean-editor-badge {
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #00cc88, #00aa66);
+  color: #00221a;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(0, 255, 150, 0.4);
+}
+
+.ocean-editor-arrow {
+  font-size: 22px;
+  color: rgba(100, 255, 180, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.ocean-editor-entry:hover .ocean-editor-arrow {
+  transform: translateX(3px);
+  color: rgba(100, 255, 180, 0.8);
 }
 </style>

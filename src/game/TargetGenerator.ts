@@ -26,6 +26,7 @@ export class TargetGenerator {
   };
   private seed: number | null = null;
   private rng: SeededRandom | null = null;
+  private customConfig: any = null;
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -48,6 +49,10 @@ export class TargetGenerator {
     } else {
       this.rng = null;
     }
+  }
+
+  setCustomConfig(config: any | null) {
+    this.customConfig = config;
   }
 
   private randomPosition(margin: number): Position {
@@ -113,17 +118,27 @@ export class TargetGenerator {
 
   generateTargets(level: number): Target[] {
     const targets: Target[] = [];
-    const margin = GAME_CONFIG.TARGETS.SPAWN_MARGIN;
-    const minR = GAME_CONFIG.TARGETS.MIN_RADIUS;
-    const maxR = GAME_CONFIG.TARGETS.MAX_RADIUS;
+    const cfg = this.customConfig ?? GAME_CONFIG;
+    const margin = cfg.TARGETS.SPAWN_MARGIN;
+    const minR = cfg.TARGETS.MIN_RADIUS;
+    const maxR = cfg.TARGETS.MAX_RADIUS;
 
-    const baseCreature = GAME_CONFIG.TARGETS.CREATURE_COUNT + Math.floor(level / 2);
-    const baseWreck = GAME_CONFIG.TARGETS.WRECK_COUNT + Math.floor(level / 3);
-    const baseDanger = GAME_CONFIG.TARGETS.DANGER_COUNT + Math.floor(level / 2);
+    let creatureCount: number;
+    let wreckCount: number;
+    let dangerCount: number;
 
-    const creatureCount = Math.max(1, Math.round(baseCreature * this.multipliers.creatureCountMul));
-    const wreckCount = Math.max(1, Math.round(baseWreck * this.multipliers.wreckCountMul));
-    const dangerCount = Math.max(1, Math.round(baseDanger * this.multipliers.dangerCountMul));
+    if (this.customConfig) {
+      creatureCount = Math.max(0, cfg.TARGETS.CREATURE_COUNT);
+      wreckCount = Math.max(0, cfg.TARGETS.WRECK_COUNT);
+      dangerCount = Math.max(0, cfg.TARGETS.DANGER_COUNT);
+    } else {
+      const baseCreature = GAME_CONFIG.TARGETS.CREATURE_COUNT + Math.floor(level / 2);
+      const baseWreck = GAME_CONFIG.TARGETS.WRECK_COUNT + Math.floor(level / 3);
+      const baseDanger = GAME_CONFIG.TARGETS.DANGER_COUNT + Math.floor(level / 2);
+      creatureCount = Math.max(1, Math.round(baseCreature * this.multipliers.creatureCountMul));
+      wreckCount = Math.max(1, Math.round(baseWreck * this.multipliers.wreckCountMul));
+      dangerCount = Math.max(1, Math.round(baseDanger * this.multipliers.dangerCountMul));
+    }
 
     const addTarget = (type: TargetType) => {
       let attempts = 0;
@@ -135,13 +150,17 @@ export class TargetGenerator {
           let points = 0;
           if (type === 'creature') {
             name = this.randomPick(CREATURE_NAMES);
-            points = Math.round((GAME_CONFIG.SCORE.CREATURE_POINTS + this.multipliers.creaturePointsBonus) * this.multipliers.scoreMul);
+            points = this.customConfig
+              ? cfg.SCORE.CREATURE_POINTS
+              : Math.round((GAME_CONFIG.SCORE.CREATURE_POINTS + this.multipliers.creaturePointsBonus) * this.multipliers.scoreMul);
           } else if (type === 'wreck') {
             name = this.randomPick(WRECK_NAMES);
-            points = Math.round((GAME_CONFIG.SCORE.WRECK_POINTS + this.multipliers.wreckPointsBonus) * this.multipliers.scoreMul);
+            points = this.customConfig
+              ? cfg.SCORE.WRECK_POINTS
+              : Math.round((GAME_CONFIG.SCORE.WRECK_POINTS + this.multipliers.wreckPointsBonus) * this.multipliers.scoreMul);
           } else {
             name = this.randomPick(DANGER_NAMES);
-            points = GAME_CONFIG.SCORE.DANGER_PENALTY;
+            points = cfg.SCORE.DANGER_PENALTY;
           }
           targets.push({
             id: nextId++,

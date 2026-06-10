@@ -28,6 +28,7 @@ export class GameController {
   private currentEffects: LoadoutEffects;
   private dailyChallenge: DailyChallengeConfig | null = null;
   private disableSonarRecharge: boolean = false;
+  private customConfig: any = null;
 
   private onStateChange?: (state: GameState) => void;
   private onScoreEvent?: (event: ScoreEvent) => void;
@@ -75,10 +76,27 @@ export class GameController {
     return this.dailyChallenge;
   }
 
+  setCustomConfig(config: any | null) {
+    this.customConfig = config;
+    this.targetGenerator.setCustomConfig(config);
+  }
+
+  getCustomConfig(): any | null {
+    return this.customConfig;
+  }
+
+  private getEffectiveConfig() {
+    if (this.customConfig) {
+      return this.customConfig;
+    }
+    return GAME_CONFIG;
+  }
+
   setLoadout(loadout: ExpeditionLoadout) {
     this.currentLoadout = { ...loadout };
     const baseEffects = computeLoadoutEffects(this.currentLoadout);
     this.currentEffects = applyTechEffects(baseEffects, this.researchStation.getAggregatedEffects());
+    const cfg = this.getEffectiveConfig();
 
     let challengeEffects = {
       livesBonus: this.currentEffects.livesBonus,
@@ -98,27 +116,28 @@ export class GameController {
 
     this.disableSonarRecharge = challengeEffects.disableRecharge;
 
-    this.renderer.setMapSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
-    this.targetGenerator.setSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
+    const mapHeight = this.customConfig ? cfg.MAP_HEIGHT : this.currentEffects.mapHeight;
+    this.renderer.setMapSize(cfg.MAP_WIDTH, mapHeight);
+    this.targetGenerator.setSize(cfg.MAP_WIDTH, mapHeight);
     this.targetGenerator.setMultipliers({
-      creatureCountMul: this.currentEffects.creatureCountMul,
-      wreckCountMul: this.currentEffects.wreckCountMul,
-      dangerCountMul: challengeEffects.dangerCountMul,
-      creaturePointsBonus: this.currentEffects.creaturePointsBonus,
-      wreckPointsBonus: this.currentEffects.wreckPointsBonus,
-      scoreMul: challengeEffects.scoreMul,
+      creatureCountMul: this.customConfig ? 1 : this.currentEffects.creatureCountMul,
+      wreckCountMul: this.customConfig ? 1 : this.currentEffects.wreckCountMul,
+      dangerCountMul: this.customConfig ? 1 : challengeEffects.dangerCountMul,
+      creaturePointsBonus: this.customConfig ? 0 : this.currentEffects.creaturePointsBonus,
+      wreckPointsBonus: this.customConfig ? 0 : this.currentEffects.wreckPointsBonus,
+      scoreMul: this.customConfig ? 1 : challengeEffects.scoreMul,
     });
     this.sonar.setParams(
-      challengeEffects.sonarRadius,
-      challengeEffects.sonarSpeed,
+      this.customConfig ? cfg.SONAR.MAX_RADIUS : challengeEffects.sonarRadius,
+      this.customConfig ? cfg.SONAR.SPEED : challengeEffects.sonarSpeed,
       this.currentEffects.precisionBonus
     );
     this.scoreSystem.setParams({
-      initialLivesBonus: challengeEffects.livesBonus,
-      initialLivesOverride: challengeEffects.livesOverride,
-      maxSonarCharges: challengeEffects.maxSonarCharges,
-      initialSonarBonus: challengeEffects.initialSonarBonus,
-      scoreMul: challengeEffects.scoreMul,
+      initialLivesBonus: this.customConfig ? 0 : challengeEffects.livesBonus,
+      initialLivesOverride: this.customConfig ? cfg.GAME.INITIAL_LIVES : challengeEffects.livesOverride,
+      maxSonarCharges: this.customConfig ? cfg.SONAR.MAX_CHARGES : challengeEffects.maxSonarCharges,
+      initialSonarBonus: this.customConfig ? 0 : challengeEffects.initialSonarBonus,
+      scoreMul: this.customConfig ? 1 : challengeEffects.scoreMul,
     });
   }
 
@@ -147,6 +166,7 @@ export class GameController {
 
   startGame() {
     const state = this.scoreSystem.getState();
+    const cfg = this.getEffectiveConfig();
     this.targets = this.targetGenerator.generateTargets(state.level);
     this.scoreSystem.startGame(this.targets.length);
     this.renderer.clearDiscovered();
@@ -156,7 +176,7 @@ export class GameController {
     this.collectedCreaturesAndWrecks = 0;
     this.lastRechargeTime = Date.now();
     this.playerPosition = {
-      x: GAME_CONFIG.MAP_WIDTH / 2,
+      x: cfg.MAP_WIDTH / 2,
       y: 80,
     };
 
@@ -206,7 +226,8 @@ export class GameController {
 
     if (!this.disableSonarRecharge) {
       const now = Date.now();
-      const rechargeTime = GAME_CONFIG.SONAR.RECHARGE_TIME * this.currentEffects.sonarRechargeTimeMul;
+      const cfg = this.getEffectiveConfig();
+      const rechargeTime = this.customConfig ? cfg.SONAR.RECHARGE_TIME : (GAME_CONFIG.SONAR.RECHARGE_TIME * this.currentEffects.sonarRechargeTimeMul);
       if (now - this.lastRechargeTime >= rechargeTime) {
         this.scoreSystem.rechargeSonar();
         this.lastRechargeTime = now;
@@ -226,7 +247,9 @@ export class GameController {
 
     const worldPos = { ...position };
     this.sonar.emitSonar(worldPos);
-    this.renderer.addDiscoveredArea(worldPos, this.currentEffects.sonarRadius);
+    const cfg = this.getEffectiveConfig();
+    const radius = this.customConfig ? cfg.SONAR.MAX_RADIUS : this.currentEffects.sonarRadius;
+    this.renderer.addDiscoveredArea(worldPos, radius);
     return true;
   }
 

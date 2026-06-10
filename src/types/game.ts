@@ -378,3 +378,63 @@ export type RescueEvent =
   | { type: 'path_complete'; pathId: number; bonus: number; perfect: boolean }
   | { type: 'yaw_warning'; remaining: number }
   | { type: 'yaw_failure' };
+
+export interface DangerZone {
+  id: number;
+  position: Position;
+  radius: number;
+  intensity: number;
+  name: string;
+  type: 'minefield' | 'volcano' | 'vortex' | 'toxic';
+}
+
+export interface RewardRule {
+  type: 'score_multiplier' | 'bonus_points' | 'extra_life' | 'sonar_bonus' | 'combo_bonus';
+  condition: {
+    type: 'collect_n_creatures' | 'collect_n_wrecks' | 'no_damage' | 'discover_all' | 'time_bonus';
+    value: number;
+  };
+  value: number;
+  name: string;
+  description: string;
+}
+
+export interface OceanLevelConfig {
+  id: string;
+  name: string;
+  description: string;
+  mapWidth: number;
+  mapHeight: number;
+  targetDensity: {
+    creature: number;
+    wreck: number;
+    danger: number;
+  };
+  targetPoints: {
+    creature: number;
+    wreck: number;
+    danger: number;
+  };
+  sonar: {
+    maxRadius: number;
+    speed: number;
+    maxCharges: number;
+    rechargeTime: number;
+  };
+  game: {
+    initialLives: number;
+    targetsPerLevel: number;
+  };
+  dangerZones: DangerZone[];
+  rewardRules: RewardRule[];
+  seed?: number;
+  createdAt: number;
+}
+
+export interface OceanEditorState {
+  levels: OceanLevelConfig[];
+  activeLevelId: string | null;
+  isPlaying: boolean;
+}
+
+export type EditorTab = 'basic' | 'targets' | 'danger' | 'rewards' | 'preview';

@@ -19,7 +19,7 @@
     />
 
     <StartScreen
-      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard && !showResearch && !showRescueIntro"
+      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard && !showResearch && !showRescueIntro && !showOceanEditor"
       :high-score="highScore"
       :collection-stats="collectionStats"
       :daily-challenge-completed="dailyChallengeSystem.isTodayCompleted()"
@@ -35,6 +35,14 @@
       @open-daily-challenge="openDailyChallenge"
       @open-research="openResearch"
       @open-rescue-mode="openRescueIntro"
+      @open-ocean-editor="openOceanEditor"
+    />
+
+    <OceanEditor
+      v-if="showOceanEditor && !gameStarted"
+      :system="oceanEditorSystem"
+      @close="closeOceanEditor"
+      @start-level="handleOceanLevelStart"
     />
 
     <RescueModeIntro
@@ -134,13 +142,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, DailyChallengeConfig, ResearchStationStats, ExpeditionReward, RescueGameState, RescueResult, RescueEvent } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, DailyChallengeConfig, ResearchStationStats, ExpeditionReward, RescueGameState, RescueResult, RescueEvent, OceanLevelConfig } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { DailyChallengeSystem } from './game/DailyChallengeSystem';
 import { ResearchStationSystem } from './game/ResearchStationSystem';
 import { RescueModeSystem } from './game/RescueModeSystem';
 import { RescueRenderer } from './game/RescueRenderer';
+import { OceanEditorSystem } from './game/OceanEditorSystem';
 import { RESCUE_CONFIG } from './config/gameConfig';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT } from './config/expeditionConfig';
@@ -156,6 +165,7 @@ import ResearchStation from './components/ResearchStation.vue';
 import RescueModeIntro from './components/RescueModeIntro.vue';
 import RescueGameHUD from './components/RescueGameHUD.vue';
 import RescueGameOver from './components/RescueGameOver.vue';
+import OceanEditor from './components/OceanEditor.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -171,6 +181,7 @@ const showDailyChallenge = ref(false);
 const showDailyLeaderboard = ref(false);
 const showResearch = ref(false);
 const showRescueIntro = ref(false);
+const showOceanEditor = ref(false);
 const leaderboardOpenedFromGameOver = ref(false);
 const rescueIntroOpenedFromRescueOver = ref(false);
 const isDailyChallengeMode = ref(false);
@@ -191,6 +202,7 @@ const collectionSystem = new CollectionSystem();
 const dailyChallengeSystem = new DailyChallengeSystem();
 const researchStationSystem = new ResearchStationSystem();
 const rescueModeSystem = new RescueModeSystem();
+const oceanEditorSystem = new OceanEditorSystem();
 
 const dailyChallenge = ref<DailyChallengeConfig | null>(null);
 
@@ -394,6 +406,51 @@ const openRescueIntro = () => {
 
 const closeRescueIntro = () => {
   showRescueIntro.value = false;
+};
+
+const openOceanEditor = () => {
+  showOceanEditor.value = true;
+};
+
+const closeOceanEditor = () => {
+  showOceanEditor.value = false;
+};
+
+const handleOceanLevelStart = (level: OceanLevelConfig) => {
+  isDailyChallengeMode.value = false;
+  isRescueMode.value = false;
+  isDailyNewRecord.value = false;
+  showOceanEditor.value = false;
+  gameStarted.value = true;
+
+  const oceanConfig = oceanEditorSystem.buildGameConfig(level);
+
+  if (rescueRenderer) {
+    rescueRenderer.destroy();
+    rescueRenderer = null;
+  }
+
+  if (canvasRef.value && !gameController) {
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController.setLoadout(currentLoadout.value);
+    gameController.setCallbacks(
+      updateState,
+      handleScoreEvent,
+      handleGameOver,
+      handleLevelUp,
+      handleUnlockEvent
+    );
+  }
+
+  if (gameController) {
+    gameController.setCustomConfig(oceanConfig);
+  }
+
+  gameController?.setLoadout(currentLoadout.value);
+  gameController?.startGame();
+  setTimeout(() => {
+    showHint.value = false;
+  }, 5000);
 };
 
 const openRescueIntroFromRescueOver = () => {
@@ -618,6 +675,7 @@ const handleHome = () => {
   isRescueMode.value = false;
   isDailyNewRecord.value = false;
   isRescueNewRecord.value = false;
+  showOceanEditor.value = false;
   Object.assign(gameState, {
     score: 0,
     lives: 3,
