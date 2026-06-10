@@ -40,6 +40,9 @@
     <RescueModeIntro
       v-if="showRescueIntro && !gameStarted"
       :best-scores="rescueBestScores"
+      :best-path-completion="rescueBestPathCompletion"
+      :perfect-paths="rescuePerfectPaths"
+      :lowest-offtrack="rescueLowestOfftrack"
       @start="handleRescueStart"
       @back="closeRescueIntro"
     />
@@ -179,6 +182,9 @@ const currentLoadout = ref<ExpeditionLoadout>({ ...DEFAULT_LOADOUT });
 const lastExpeditionReward = ref<ExpeditionReward | null>(null);
 const lastRescueResult = ref<RescueResult | null>(null);
 const rescueBestScores = ref<number[]>([0, 0, 0, 0, 0]);
+const rescueBestPathCompletion = ref<number[]>([0, 0, 0, 0, 0]);
+const rescuePerfectPaths = ref<boolean[]>([false, false, false, false, false]);
+const rescueLowestOfftrack = ref<number[]>([999, 999, 999, 999, 999]);
 const currentRescueLevel = ref(1);
 
 const collectionSystem = new CollectionSystem();
@@ -251,6 +257,30 @@ const handleRescueEvent = (event: RescueEvent) => {
   } else if (event.type === 'rescue_success' && floatingScoreRef.value && containerRef.value) {
     const rect = containerRef.value.getBoundingClientRect();
     floatingScoreRef.value.addScore(event.bonus, '救援成功!', 'collect', rect.width / 2, rect.height / 2);
+  } else if (event.type === 'path_assigned') {
+    rescueModeSystem.startFollowingPath(event.pathId);
+  } else if (event.type === 'path_offtrack' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(event.penalty, '偏航!', 'damage', rect.width / 2, rect.height / 2);
+  } else if (event.type === 'path_return' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(event.bonus, '回到航线', 'bonus', rect.width / 2, rect.height / 2);
+  } else if (event.type === 'path_progress' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(event.bonus, '航线进度', 'bonus', rect.width / 2, rect.height / 3);
+  } else if (event.type === 'path_complete' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    const label = event.perfect ? '完美航线!' : '航线完成';
+    floatingScoreRef.value.addScore(event.bonus, label, 'bonus', rect.width / 2, rect.height / 2);
+  } else if (event.type === 'high_risk_enter' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(event.penalty, '高危区!', 'damage', rect.width / 2, rect.height / 2);
+  } else if (event.type === 'blocker_collision' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(event.penalty, '阻断区!', 'damage', rect.width / 2, rect.height / 2);
+  } else if (event.type === 'yaw_warning' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(0, `偏航警告 剩余${event.remaining}次`, 'damage', rect.width / 2, rect.height / 2);
   }
 };
 
@@ -319,6 +349,27 @@ const handleRescueGameOver = (result: RescueResult) => {
       isRescueNewRecord.value = true;
       try {
         localStorage.setItem('deepSeaSonar_rescueBestScores', JSON.stringify(rescueBestScores.value));
+      } catch (_e) {}
+    }
+
+    if (result.pathCompletionRate > rescueBestPathCompletion.value[levelIdx]) {
+      rescueBestPathCompletion.value[levelIdx] = result.pathCompletionRate;
+      try {
+        localStorage.setItem('deepSeaSonar_rescueBestPathCompletion', JSON.stringify(rescueBestPathCompletion.value));
+      } catch (_e) {}
+    }
+
+    if (result.perfectPathBonus && !rescuePerfectPaths.value[levelIdx]) {
+      rescuePerfectPaths.value[levelIdx] = true;
+      try {
+        localStorage.setItem('deepSeaSonar_rescuePerfectPaths', JSON.stringify(rescuePerfectPaths.value));
+      } catch (_e) {}
+    }
+
+    if (result.offtrackCount < rescueLowestOfftrack.value[levelIdx]) {
+      rescueLowestOfftrack.value[levelIdx] = result.offtrackCount;
+      try {
+        localStorage.setItem('deepSeaSonar_rescueLowestOfftrack', JSON.stringify(rescueLowestOfftrack.value));
       } catch (_e) {}
     }
   }
@@ -696,6 +747,36 @@ onMounted(() => {
         const parsed = JSON.parse(savedRescueScores);
         if (Array.isArray(parsed) && parsed.length === 5) {
           rescueBestScores.value = parsed;
+        }
+      } catch (_e) {}
+    }
+
+    const savedPathCompletion = localStorage.getItem('deepSeaSonar_rescueBestPathCompletion');
+    if (savedPathCompletion) {
+      try {
+        const parsed = JSON.parse(savedPathCompletion);
+        if (Array.isArray(parsed) && parsed.length === 5) {
+          rescueBestPathCompletion.value = parsed;
+        }
+      } catch (_e) {}
+    }
+
+    const savedPerfectPaths = localStorage.getItem('deepSeaSonar_rescuePerfectPaths');
+    if (savedPerfectPaths) {
+      try {
+        const parsed = JSON.parse(savedPerfectPaths);
+        if (Array.isArray(parsed) && parsed.length === 5) {
+          rescuePerfectPaths.value = parsed;
+        }
+      } catch (_e) {}
+    }
+
+    const savedLowestOfftrack = localStorage.getItem('deepSeaSonar_rescueLowestOfftrack');
+    if (savedLowestOfftrack) {
+      try {
+        const parsed = JSON.parse(savedLowestOfftrack);
+        if (Array.isArray(parsed) && parsed.length === 5) {
+          rescueLowestOfftrack.value = parsed;
         }
       } catch (_e) {}
     }

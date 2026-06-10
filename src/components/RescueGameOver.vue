@@ -13,9 +13,16 @@
         <span class="record-icon">🏆</span> 新纪录！
       </div>
 
+      <div v-if="result.perfectPathBonus" class="perfect-path-badge">
+        <span class="pp-icon">🛤️</span> 完美航线！
+      </div>
+
       <div class="score-display">
         <div class="score-label">救援总分</div>
         <div class="final-score">{{ formatNumber(result.score) }}</div>
+        <div v-if="result.totalPathBonus > 0" class="score-path-bonus">
+          含航线加成 +{{ result.totalPathBonus }}
+        </div>
       </div>
 
       <div class="rank-section">
@@ -43,6 +50,53 @@
         </div>
       </div>
 
+      <div class="path-stats-section" v-if="result.safeTravelDistance > 0 || result.offtrackCount > 0">
+        <div class="ps-header">
+          <span class="ps-icon">🛤️</span>
+          <span class="ps-title">航线数据</span>
+        </div>
+
+        <div class="ps-metrics">
+          <div class="ps-metric">
+            <span class="psm-label">航行距离</span>
+            <span class="psm-value">{{ result.safeTravelDistance }}m</span>
+          </div>
+          <div class="ps-metric">
+            <span class="psm-label">完成率</span>
+            <span class="psm-value" :class="getCompletionClass(result.pathCompletionRate)">
+              {{ result.pathCompletionRate }}%
+            </span>
+          </div>
+          <div class="ps-metric">
+            <span class="psm-label">航线加成</span>
+            <span class="psm-value bonus">+{{ result.totalPathBonus }}</span>
+          </div>
+        </div>
+
+        <div class="ps-violations">
+          <div class="psv-item" v-if="result.offtrackCount > 0">
+            <span class="psv-icon">⚠️</span>
+            <span class="psv-label">偏航次数</span>
+            <span class="psv-value danger">{{ result.offtrackCount }}</span>
+          </div>
+          <div class="psv-item" v-if="result.highRiskIncursions > 0">
+            <span class="psv-icon">☢️</span>
+            <span class="psv-label">高危区侵入</span>
+            <span class="psv-value danger">{{ result.highRiskIncursions }}</span>
+          </div>
+          <div class="psv-item" v-if="result.blockerCollisions > 0">
+            <span class="psv-icon">🚧</span>
+            <span class="psv-label">阻断区碰撞</span>
+            <span class="psv-value danger">{{ result.blockerCollisions }}</span>
+          </div>
+          <div class="psv-item perfect" v-if="result.perfectPathBonus">
+            <span class="psv-icon">✨</span>
+            <span class="psv-label">零违规航行</span>
+            <span class="psv-value bonus">+500</span>
+          </div>
+        </div>
+      </div>
+
       <div class="detail-stats">
         <div class="detail-row">
           <span class="detail-label">准确率</span>
@@ -55,6 +109,14 @@
         <div class="detail-row">
           <span class="detail-label">关卡等级</span>
           <span class="detail-value">Lv.{{ result.level }}</span>
+        </div>
+        <div class="detail-row" v-if="result.offtrackCount > 0">
+          <span class="detail-label">偏航处罚</span>
+          <span class="detail-value danger">-{{ result.offtrackCount * 80 }}</span>
+        </div>
+        <div class="detail-row" v-if="result.highRiskIncursions > 0">
+          <span class="detail-label">高危区处罚</span>
+          <span class="detail-value danger">-{{ result.highRiskIncursions * 120 }}</span>
         </div>
       </div>
 
@@ -122,6 +184,13 @@ const accuracyClass = computed(() => {
   if (props.result.accuracy >= 50) return 'normal';
   return 'poor';
 });
+
+const getCompletionClass = (rate: number) => {
+  if (rate >= 90) return 'excellent';
+  if (rate >= 70) return 'good';
+  if (rate >= 50) return 'normal';
+  return 'poor';
+};
 </script>
 
 <style scoped>
@@ -215,7 +284,7 @@ const accuracyClass = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
   padding: 6px 16px;
   background: linear-gradient(135deg, rgba(255, 204, 0, 0.2), rgba(255, 136, 0, 0.2));
   border: 1px solid rgba(255, 204, 0, 0.5);
@@ -235,8 +304,33 @@ const accuracyClass = computed(() => {
   font-size: 16px;
 }
 
+.perfect-path-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  margin-left: 8px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, rgba(0, 255, 200, 0.15), rgba(0, 170, 255, 0.15));
+  border: 1px solid rgba(0, 255, 200, 0.5);
+  border-radius: 20px;
+  color: #00ffcc;
+  font-size: 12px;
+  font-weight: bold;
+  animation: pulse-perfect 2s ease-in-out infinite;
+}
+
+@keyframes pulse-perfect {
+  0%, 100% { box-shadow: 0 0 10px rgba(0, 255, 200, 0.3); }
+  50% { box-shadow: 0 0 25px rgba(0, 255, 200, 0.5); }
+}
+
+.pp-icon {
+  font-size: 14px;
+}
+
 .score-display {
-  margin: 20px 0;
+  margin: 16px 0;
 }
 
 .score-label {
@@ -258,12 +352,20 @@ const accuracyClass = computed(() => {
   line-height: 1;
 }
 
+.score-path-bonus {
+  font-size: 11px;
+  color: #00ffaa;
+  margin-top: 4px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
 .rank-section {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 14px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .rank-label {
@@ -324,7 +426,7 @@ const accuracyClass = computed(() => {
   display: flex;
   justify-content: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .stat-item {
@@ -362,12 +464,122 @@ const accuracyClass = computed(() => {
   letter-spacing: 0.5px;
 }
 
+.path-stats-section {
+  background: linear-gradient(135deg, rgba(10, 40, 60, 0.6), rgba(5, 20, 40, 0.7));
+  border: 1px solid rgba(0, 255, 200, 0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.ps-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 255, 200, 0.15);
+}
+
+.ps-icon {
+  font-size: 14px;
+}
+
+.ps-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.9);
+  letter-spacing: 2px;
+}
+
+.ps-metrics {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 10px;
+}
+
+.ps-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.psm-label {
+  font-size: 9px;
+  color: rgba(150, 220, 255, 0.5);
+  letter-spacing: 0.5px;
+}
+
+.psm-value {
+  font-size: 14px;
+  font-weight: bold;
+  color: #aaddff;
+  font-family: 'Courier New', monospace;
+}
+
+.psm-value.bonus {
+  color: #00ffaa;
+}
+
+.psm-value.excellent { color: #00ffcc; }
+.psm-value.good { color: #66ff99; }
+.psm-value.normal { color: #ffcc66; }
+.psm-value.poor { color: #ff6688; }
+
+.ps-violations {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 200, 255, 0.15);
+}
+
+.psv-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(0, 30, 50, 0.4);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.psv-item.perfect {
+  background: rgba(0, 80, 60, 0.4);
+  border: 1px solid rgba(0, 255, 150, 0.3);
+}
+
+.psv-icon {
+  font-size: 12px;
+}
+
+.psv-label {
+  flex: 1;
+  color: rgba(200, 230, 255, 0.65);
+  text-align: left;
+}
+
+.psv-value {
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
+.psv-value.danger {
+  color: #ff6666;
+}
+
+.psv-value.bonus {
+  color: #00ffaa;
+}
+
 .detail-stats {
   background: rgba(30, 0, 50, 0.5);
   border: 1px solid rgba(0, 255, 170, 0.15);
   border-radius: 10px;
   padding: 10px 14px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .detail-row {
@@ -396,13 +608,14 @@ const accuracyClass = computed(() => {
 .detail-value.good { color: #66ff99; }
 .detail-value.normal { color: #ffcc66; }
 .detail-value.poor { color: #ff6688; }
+.detail-value.danger { color: #ff6666; }
 
 .reward-section {
   background: linear-gradient(135deg, rgba(255, 204, 0, 0.12), rgba(255, 136, 0, 0.12));
   border: 1px solid rgba(255, 204, 0, 0.4);
   border-radius: 12px;
   padding: 14px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .reward-header {
@@ -445,7 +658,7 @@ const accuracyClass = computed(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   background: linear-gradient(135deg, rgba(0, 255, 200, 0.12), rgba(0, 170, 255, 0.12));
   border: 1px solid rgba(0, 255, 200, 0.4);
   border-radius: 16px;

@@ -22,7 +22,7 @@ interface FloatingScore {
   id: number;
   value: number;
   label: string;
-  type: 'collect' | 'damage' | 'levelUp';
+  type: 'collect' | 'damage' | 'levelUp' | 'bonus';
   x: number;
   y: number;
 }
@@ -30,7 +30,7 @@ interface FloatingScore {
 const floatingScores = ref<FloatingScore[]>([]);
 let nextId = 1;
 
-const addScore = (value: number, label: string, type: 'collect' | 'damage' | 'levelUp', x: number, y: number) => {
+const addScore = (value: number, label: string, type: 'collect' | 'damage' | 'levelUp' | 'bonus', x: number, y: number) => {
   const id = nextId++;
   floatingScores.value.push({ id, value, label, type, x, y });
   setTimeout(() => {
@@ -83,6 +83,10 @@ defineExpose({ addScore });
 
 .floating-item.levelUp .float-value {
   color: #ffcc00;
+}
+
+.floating-item.bonus .float-value {
+  color: #00ffaa;
 }
 
 .float-up-enter-active {

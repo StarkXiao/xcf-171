@@ -78,9 +78,23 @@
         </div>
       </div>
 
-      <div class="best-record" v-if="bestScores[selectedLevel] > 0">
-        <span class="record-label">本关最佳</span>
-        <span class="record-value">{{ bestScores[selectedLevel].toLocaleString() }}</span>
+      <div class="best-records">
+        <div class="best-record main" v-if="bestScores[selectedLevel] > 0">
+          <span class="record-label">🏆 最高分数</span>
+          <span class="record-value">{{ bestScores[selectedLevel].toLocaleString() }}</span>
+        </div>
+        <div class="best-record" v-if="bestPathCompletion && bestPathCompletion[selectedLevel] > 0">
+          <span class="record-label">🛤️ 最佳航线完成率</span>
+          <span class="record-value path">{{ bestPathCompletion[selectedLevel] }}%</span>
+        </div>
+        <div class="best-record perfect" v-if="perfectPaths && perfectPaths[selectedLevel]">
+          <span class="record-label">✨ 完美航线</span>
+          <span class="record-value">已达成</span>
+        </div>
+        <div class="best-record" v-if="lowestOfftrack && lowestOfftrack[selectedLevel] < 999">
+          <span class="record-label">🎯 最少偏航</span>
+          <span class="record-value">{{ lowestOfftrack[selectedLevel] }} 次</span>
+        </div>
       </div>
 
       <button class="start-btn" @click="$emit('start', selectedLevel + 1)">
@@ -100,6 +114,9 @@ import { ref } from 'vue';
 
 defineProps<{
   bestScores: number[];
+  bestPathCompletion?: number[];
+  perfectPaths?: boolean[];
+  lowestOfftrack?: number[];
 }>();
 
 defineEmits<{
@@ -386,27 +403,58 @@ const levels = [
   letter-spacing: 0.5px;
 }
 
+.best-records {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  align-items: center;
+}
+
 .best-record {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
+  justify-content: space-between;
+  gap: 12px;
   padding: 6px 14px;
-  background: rgba(255, 204, 0, 0.1);
-  border: 1px solid rgba(255, 204, 0, 0.3);
-  border-radius: 14px;
+  background: rgba(255, 204, 0, 0.08);
+  border: 1px solid rgba(255, 204, 0, 0.25);
+  border-radius: 12px;
+  min-width: 220px;
+}
+
+.best-record.main {
+  background: rgba(255, 204, 0, 0.15);
+  border: 1px solid rgba(255, 204, 0, 0.4);
+}
+
+.best-record.perfect {
+  background: rgba(0, 255, 150, 0.12);
+  border: 1px solid rgba(0, 255, 150, 0.4);
 }
 
 .record-label {
   font-size: 11px;
-  color: rgba(255, 200, 120, 0.7);
+  color: rgba(255, 200, 120, 0.75);
+}
+
+.best-record.perfect .record-label {
+  color: rgba(0, 255, 180, 0.85);
 }
 
 .record-value {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: bold;
   color: #ffcc66;
   font-family: 'Courier New', monospace;
+}
+
+.record-value.path {
+  color: #66ffaa;
+}
+
+.best-record.perfect .record-value {
+  color: #00ffaa;
 }
 
 .start-btn {

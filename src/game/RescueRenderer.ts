@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import type { Position, RescueCapsule, InterferenceZone, RescuePath } from '../types/game';
+import type { Position, RescueCapsule, InterferenceZone, RescuePath, PathSafetyLevel, RescuePathState } from '../types/game';
 import { RESCUE_CONFIG } from '../config/gameConfig';
 
 interface SonarWaveLite {
@@ -282,26 +282,50 @@ export class RescueRenderer {
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
-  public renderPaths(paths: RescuePath[]) {
+  private getPathColor(safetyLevel: PathSafetyLevel): number {
+    switch (safetyLevel) {
+      case 'safe': return RESCUE_CONFIG.COLORS.PATH_SAFE;
+      case 'caution': return RESCUE_CONFIG.COLORS.PATH_CAUTION;
+      case 'danger': return RESCUE_CONFIG.COLORS.PATH_DANGER;
+      case 'high_risk': return RESCUE_CONFIG.COLORS.PATH_HIGH_RISK;
+      case 'blocked': return RESCUE_CONFIG.COLORS.PATH_BLOCKED;
+      default: return RESCUE_CONFIG.COLORS.PATH_SAFE;
+    }
+  }
+
+  public renderPaths(paths: RescuePath[], pathState?: RescuePathState) {
     this.pathContainer.removeChildren();
     const time = Date.now() / 1000;
 
     for (const path of paths) {
       if (path.points.length < 2) continue;
 
-      const color = path.isSafe ? 0x00ffaa : 0xff6644;
-      const alpha = path.isSafe ? 0.35 : 0.5;
+      const isActive = path.active;
+      const isCompleted = path.completed;
+      const color = this.getPathColor(path.safetyLevel);
+      const baseAlpha = isActive ? 0.9 : (isCompleted ? 0.4 : 0.3);
+      const lineWidth = isActive ? 4 : (isCompleted ? 2 : 2);
+
+      if (isActive) {
+        const safeCorridor = new PIXI.Graphics();
+        safeCorridor.lineStyle(RESCUE_CONFIG.PATH.MAX_ALLOWED_DEVIATION * 2, color, 0.08);
+        safeCorridor.moveTo(path.points[0].x, path.points[0].y);
+        for (let i = 1; i < path.points.length; i++) {
+          safeCorridor.lineTo(path.points[i].x, path.points[i].y);
+        }
+        this.pathContainer.addChild(safeCorridor);
+      }
 
       const g = new PIXI.Graphics();
-      g.lineStyle(2, color, alpha);
+      g.lineStyle(lineWidth, color, baseAlpha);
       for (let i = 0; i < path.points.length - 1; i++) {
         const p1 = path.points[i];
         const p2 = path.points[i + 1];
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
         const len = Math.hypot(dx, dy);
-        const dashLen = 8;
-        const gapLen = 6;
+        const dashLen = isActive ? 10 : 8;
+        const gapLen = isActive ? 6 : 8;
         const totalLen = dashLen + gapLen;
         const steps = Math.floor(len / totalLen);
         const ux = dx / len;
@@ -316,64 +340,206 @@ export class RescueRenderer {
         }
       }
 
-      const animatedDash = new PIXI.Graphics();
-      animatedDash.lineStyle(3, color, alpha * 0.8);
-      const dashOffset = (time * 30) % 20;
-      for (let i = 0; i < path.points.length - 1; i++) {
-        const p1 = path.points[i];
-        const p2 = path.points[i + 1];
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const len = Math.hypot(dx, dy);
-        const dashLen = 6;
-        const gapLen = 14;
-        const totalLen = dashLen + gapLen;
-        const ux = dx / len;
-        const uy = dy / len;
-        let startD = -dashOffset;
-        while (startD < len) {
-          const endD = Math.min(startD + dashLen, len);
-          const actualStart = Math.max(0, startD);
-          if (actualStart < endD) {
-            animatedDash.moveTo(p1.x + ux * actualStart, p1.y + uy * actualStart);
-            animatedDash.lineTo(p1.x + ux * endD, p1.y + uy * endD);
+      if (isActive && pathState?.followStatus === 'following') {
+        const animatedDash = new PIXI.Graphics();
+        animatedDash.lineStyle(lineWidth + 1, color, baseAlpha * 0.9);
+        const dashOffset = (time * 40) % 24;
+        for (let i = 0; i < path.points.length - 1; i++) {
+          const p1 = path.points[i];
+          const p2 = path.points[i + 1];
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const len = Math.hypot(dx, dy);
+          const dashLen = 8;
+          const gapLen = 16;
+          const totalLen = dashLen + gapLen;
+          const ux = dx / len;
+          const uy = dy / len;
+          let startD = -dashOffset;
+          while (startD < len) {
+            const endD = Math.min(startD + dashLen, len);
+            const actualStart = Math.max(0, startD);
+            if (actualStart < endD) {
+              animatedDash.moveTo(p1.x + ux * actualStart, p1.y + uy * actualStart);
+              animatedDash.lineTo(p1.x + ux * endD, p1.y + uy * endD);
+            }
+            startD += totalLen;
           }
-          startD += totalLen;
         }
+        this.pathContainer.addChild(animatedDash);
+      }
+
+      if (isActive && path.progress > 0 && path.progress < 1) {
+        const progressG = new PIXI.Graphics();
+        progressG.lineStyle(lineWidth + 2, 0xffffff, 0.3);
+        let coveredDist = 0;
+        for (let i = 0; i < path.points.length - 1; i++) {
+          const p1 = path.points[i];
+          const p2 = path.points[i + 1];
+          const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          const totalLen = this.calculatePathTotalLength(path);
+          const progressDist = totalLen * path.progress;
+
+          if (coveredDist + segLen <= progressDist) {
+            progressG.moveTo(p1.x, p1.y);
+            progressG.lineTo(p2.x, p2.y);
+            coveredDist += segLen;
+          } else if (coveredDist < progressDist) {
+            const remaining = progressDist - coveredDist;
+            const t = remaining / segLen;
+            const ex = p1.x + (p2.x - p1.x) * t;
+            const ey = p1.y + (p2.y - p1.y) * t;
+            progressG.moveTo(p1.x, p1.y);
+            progressG.lineTo(ex, ey);
+            break;
+          } else {
+            break;
+          }
+        }
+        this.pathContainer.addChild(progressG);
       }
 
       for (let i = 0; i < path.points.length; i++) {
         const pt = path.points[i];
         const node = new PIXI.Graphics();
+        const isCurrentSegment = isActive && i === path.currentSegment + 1;
+        const isPassed = isActive && i <= path.currentSegment;
+
         if (i === 0) {
-          node.beginFill(0x44ffaa, 0.8);
-          node.drawCircle(pt.x, pt.y, 6);
+          node.beginFill(0x44ffaa, isActive ? 1 : 0.6);
+          node.drawCircle(pt.x, pt.y, isActive ? 8 : 6);
           node.endFill();
+        } else if (i === path.points.length - 1) {
+          const targetPulse = isActive && !isCompleted ? (0.6 + Math.sin(time * 3) * 0.4) : 0.5;
+          node.lineStyle(isActive ? 3 : 2, color, targetPulse);
+          node.beginFill(color, isCompleted ? 0.2 : 0.4);
+          node.drawCircle(pt.x, pt.y, isActive ? 10 : 7);
+          node.endFill();
+
+          if (isActive && !isCompleted) {
+            const targetRing = new PIXI.Graphics();
+            targetRing.lineStyle(2, color, 0.5 + Math.sin(time * 4) * 0.3);
+            targetRing.drawCircle(pt.x, pt.y, 18 + Math.sin(time * 4) * 4);
+            this.pathContainer.addChild(targetRing);
+          }
         } else {
-          node.lineStyle(2, color, 0.7);
-          node.beginFill(color, 0.3);
-          node.drawCircle(pt.x, pt.y, 5);
+          const nodeColor = isPassed ? 0x44ffaa : color;
+          node.lineStyle(isActive ? 2 : 1.5, nodeColor, isCurrentSegment ? 1 : 0.6);
+          node.beginFill(nodeColor, isPassed ? 0.6 : 0.25);
+          node.drawCircle(pt.x, pt.y, isCurrentSegment ? 7 : (isActive ? 5 : 4));
           node.endFill();
+
+          if (isCurrentSegment) {
+            const nodePulse = new PIXI.Graphics();
+            nodePulse.lineStyle(2, 0xffffff, 0.5 + Math.sin(time * 5) * 0.3);
+            nodePulse.drawCircle(pt.x, pt.y, 12 + Math.sin(time * 5) * 2);
+            this.pathContainer.addChild(nodePulse);
+          }
         }
         this.pathContainer.addChild(node);
       }
 
-      if (!path.isSafe) {
+      if (path.safetyLevel === 'danger' || path.safetyLevel === 'high_risk' || path.safetyLevel === 'blocked') {
         const dLevel = Math.ceil(path.dangerLevel);
-        for (let i = 0; i < dLevel; i++) {
-          const mid = path.points[Math.min(path.points.length - 1, i + 1)];
+        for (let i = 0; i < Math.min(dLevel, 3); i++) {
+          const midIdx = Math.floor((path.points.length - 1) * ((i + 1) / (dLevel + 1)));
+          const mid = path.points[midIdx];
           if (mid) {
             const warn = new PIXI.Graphics();
-            warn.lineStyle(1.5, 0xff4466, 0.7 + Math.sin(time * 4 + i) * 0.3);
-            warn.moveTo(mid.x, mid.y - 10);
-            warn.lineTo(mid.x, mid.y - 2);
-            warn.drawCircle(mid.x, mid.y + 3, 2);
+            const warnColor = path.safetyLevel === 'blocked' ? 0x660033 : (path.safetyLevel === 'high_risk' ? 0xff0033 : 0xff6644);
+            warn.lineStyle(1.5, warnColor, 0.8 + Math.sin(time * 4 + i) * 0.2);
+            warn.moveTo(mid.x, mid.y - 12);
+            warn.lineTo(mid.x, mid.y - 3);
+            warn.drawCircle(mid.x, mid.y + 2, 2.5);
             this.pathContainer.addChild(warn);
           }
         }
       }
 
-      this.pathContainer.addChild(g, animatedDash);
+      if (isCompleted) {
+        const checkMark = new PIXI.Graphics();
+        checkMark.lineStyle(3, 0x00ff88, 0.8);
+        const endPt = path.points[path.points.length - 1];
+        checkMark.moveTo(endPt.x - 10, endPt.y);
+        checkMark.lineTo(endPt.x - 3, endPt.y + 7);
+        checkMark.lineTo(endPt.x + 12, endPt.y - 8);
+        this.pathContainer.addChild(checkMark);
+      }
+
+      this.pathContainer.addChild(g);
+    }
+  }
+
+  private calculatePathTotalLength(path: RescuePath): number {
+    let len = 0;
+    for (let i = 0; i < path.points.length - 1; i++) {
+      len += Math.hypot(
+        path.points[i + 1].x - path.points[i].x,
+        path.points[i + 1].y - path.points[i].y
+      );
+    }
+    return len;
+  }
+
+  public renderPathStateIndicator(pathState: RescuePathState, playerPos: Position) {
+    let indicator = this.mapContainer.getChildByName('path-state-indicator') as PIXI.Container;
+    if (!indicator) {
+      indicator = new PIXI.Container();
+      indicator.name = 'path-state-indicator';
+      this.mapContainer.addChild(indicator);
+    }
+    indicator.removeChildren();
+
+    if (pathState.followStatus !== 'following' && pathState.followStatus !== 'offtrack') return;
+
+    const time = Date.now() / 1000;
+
+    if (pathState.distanceFromPath > RESCUE_CONFIG.PATH.WARNING_DEVIATION) {
+      const warnColor = pathState.distanceFromPath > RESCUE_CONFIG.PATH.MAX_ALLOWED_DEVIATION
+        ? RESCUE_CONFIG.COLORS.PATH_OFFTRACK
+        : RESCUE_CONFIG.COLORS.PATH_CAUTION;
+
+      const warnRing = new PIXI.Graphics();
+      const pulse = 0.6 + Math.sin(time * 6) * 0.4;
+      warnRing.lineStyle(3, warnColor, pulse);
+      warnRing.drawCircle(playerPos.x, playerPos.y, 30 + Math.sin(time * 6) * 5);
+      indicator.addChild(warnRing);
+
+      for (let i = 0; i < pathState.maxYawWarnings; i++) {
+        const dot = new PIXI.Graphics();
+        const lost = i < pathState.yawWarnings;
+        dot.lineStyle(1.5, warnColor, lost ? 0.3 : 1);
+        if (!lost) dot.beginFill(warnColor, 0.8);
+        dot.drawCircle(
+          playerPos.x + (i - (pathState.maxYawWarnings - 1) / 2) * 14,
+          playerPos.y - 35,
+          lost ? 4 : 5
+        );
+        if (!lost) dot.endFill();
+        indicator.addChild(dot);
+      }
+    }
+
+    if (pathState.isInHighRiskZone || pathState.isInBlockerZone) {
+      const alertColor = pathState.isInBlockerZone ? RESCUE_CONFIG.COLORS.PATH_BLOCKED : RESCUE_CONFIG.COLORS.PATH_HIGH_RISK;
+
+      const alertBg = new PIXI.Graphics();
+      const alertPulse = 0.5 + Math.sin(time * 8) * 0.5;
+      alertBg.beginFill(alertColor, 0.15 * alertPulse);
+      alertBg.drawCircle(playerPos.x, playerPos.y, 60);
+      alertBg.endFill();
+
+      const alertRing = new PIXI.Graphics();
+      alertRing.lineStyle(4, alertColor, alertPulse);
+      alertRing.drawCircle(playerPos.x, playerPos.y, 50 + Math.sin(time * 8) * 8);
+      indicator.addChild(alertBg, alertRing);
+
+      const alertIcon = new PIXI.Graphics();
+      alertIcon.lineStyle(2, 0xffffff, 1);
+      alertIcon.moveTo(playerPos.x, playerPos.y - 25);
+      alertIcon.lineTo(playerPos.x, playerPos.y - 10);
+      alertIcon.drawCircle(playerPos.x, playerPos.y - 3, 3);
+      indicator.addChild(alertIcon);
     }
   }
 
@@ -639,5 +805,7 @@ export class RescueRenderer {
     this.waveContainer.removeChildren();
     const player = this.mapContainer.getChildByName('rescue-player');
     if (player) this.mapContainer.removeChild(player);
+    const indicator = this.mapContainer.getChildByName('path-state-indicator');
+    if (indicator) this.mapContainer.removeChild(indicator);
   }
 }

@@ -273,11 +273,47 @@ export interface InterferenceZone {
   type: 'noise' | 'decoy' | 'blocker';
 }
 
+export type PathFollowStatus = 'idle' | 'following' | 'offtrack' | 'blocked' | 'reached';
+export type PathSafetyLevel = 'safe' | 'caution' | 'danger' | 'high_risk' | 'blocked';
+
 export interface RescuePath {
   id: number;
   points: Position[];
   isSafe: boolean;
   dangerLevel: number;
+  targetCapsuleId: number;
+  safetyLevel: PathSafetyLevel;
+  active: boolean;
+  completed: boolean;
+  progress: number;
+  currentSegment: number;
+}
+
+export interface PathViolation {
+  id: number;
+  type: 'offtrack' | 'high_risk_zone' | 'blocker_zone';
+  position: Position;
+  time: number;
+  timePenalty: number;
+  scorePenalty: number;
+}
+
+export interface RescuePathState {
+  activePathId: number | null;
+  followStatus: PathFollowStatus;
+  currentTargetCapsuleId: number | null;
+  yawWarnings: number;
+  maxYawWarnings: number;
+  distanceFromPath: number;
+  maxAllowedDeviation: number;
+  pathBonus: number;
+  totalPathBonus: number;
+  safeDistanceTraveled: number;
+  totalPathLength: number;
+  pathCompletionRate: number;
+  currentSafetyLevel: PathSafetyLevel;
+  isInHighRiskZone: boolean;
+  isInBlockerZone: boolean;
 }
 
 export interface RescueGameState {
@@ -298,6 +334,7 @@ export interface RescueGameState {
   playerPosition: Position;
   rescueMeter: number;
   currentLevel: number;
+  path: RescuePathState;
 }
 
 export interface RescueResult {
@@ -313,6 +350,13 @@ export interface RescueResult {
   accuracy: number;
   rank: 'S' | 'A' | 'B' | 'C' | 'D';
   rescuePoints: number;
+  totalPathBonus: number;
+  pathCompletionRate: number;
+  offtrackCount: number;
+  highRiskIncursions: number;
+  blockerCollisions: number;
+  safeTravelDistance: number;
+  perfectPathBonus: boolean;
 }
 
 export type RescueEvent =
@@ -322,4 +366,15 @@ export type RescueEvent =
   | { type: 'capsule_confirmed'; capsuleId: number; bonus: number }
   | { type: 'rescue_success'; capsuleId: number; bonus: number }
   | { type: 'time_warning'; remaining: number }
-  | { type: 'game_over'; result: RescueResult };
+  | { type: 'game_over'; result: RescueResult }
+  | { type: 'path_assigned'; pathId: number; capsuleId: number }
+  | { type: 'path_start'; pathId: number; capsuleId: number }
+  | { type: 'path_offtrack'; distance: number; penalty: number; warning: boolean }
+  | { type: 'path_return'; bonus: number }
+  | { type: 'high_risk_enter'; zoneId: number; penalty: number }
+  | { type: 'high_risk_exit'; zoneId: number }
+  | { type: 'blocker_collision'; zoneId: number; penalty: number }
+  | { type: 'path_progress'; pathId: number; progress: number; bonus: number }
+  | { type: 'path_complete'; pathId: number; bonus: number; perfect: boolean }
+  | { type: 'yaw_warning'; remaining: number }
+  | { type: 'yaw_failure' };
