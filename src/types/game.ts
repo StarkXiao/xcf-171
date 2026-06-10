@@ -250,3 +250,76 @@ export interface ExpeditionReward {
     dailyBonus: number;
   };
 }
+
+export type RescueTargetStatus = 'unknown' | 'suspected' | 'confirmed' | 'rescued';
+
+export interface RescueCapsule {
+  id: number;
+  position: Position;
+  radius: number;
+  status: RescueTargetStatus;
+  isReal: boolean;
+  name: string;
+  distressSignalStrength: number;
+  discovered: boolean;
+  rescued: boolean;
+}
+
+export interface InterferenceZone {
+  id: number;
+  position: Position;
+  radius: number;
+  intensity: number;
+  type: 'noise' | 'decoy' | 'blocker';
+}
+
+export interface RescuePath {
+  id: number;
+  points: Position[];
+  isSafe: boolean;
+  dangerLevel: number;
+}
+
+export interface RescueGameState {
+  score: number;
+  timeRemaining: number;
+  totalTime: number;
+  isPlaying: boolean;
+  isPaused: boolean;
+  isGameOver: boolean;
+  isVictory: boolean;
+  capsulesFound: number;
+  capsulesRescued: number;
+  totalRealCapsules: number;
+  falseReports: number;
+  maxFalseReports: number;
+  sonarCharges: number;
+  maxSonarCharges: number;
+  playerPosition: Position;
+  rescueMeter: number;
+  currentLevel: number;
+}
+
+export interface RescueResult {
+  victory: boolean;
+  score: number;
+  capsulesRescued: number;
+  totalRealCapsules: number;
+  falseReports: number;
+  timeRemaining: number;
+  totalTime: number;
+  sonarUsed: number;
+  level: number;
+  accuracy: number;
+  rank: 'S' | 'A' | 'B' | 'C' | 'D';
+  rescuePoints: number;
+}
+
+export type RescueEvent =
+  | { type: 'sonar_fired'; position: Position }
+  | { type: 'capsule_detected'; capsuleId: number; position: Position }
+  | { type: 'false_report'; position: Position; penalty: number }
+  | { type: 'capsule_confirmed'; capsuleId: number; bonus: number }
+  | { type: 'rescue_success'; capsuleId: number; bonus: number }
+  | { type: 'time_warning'; remaining: number }
+  | { type: 'game_over'; result: RescueResult };

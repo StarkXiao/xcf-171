@@ -5,15 +5,21 @@
     <FloatingScore ref="floatingScoreRef" />
 
     <GameHUD
-      v-if="gameState.isPlaying && !gameState.isGameOver"
+      v-if="gameState.isPlaying && !gameState.isGameOver && !isRescueMode"
       :state="gameState"
       :show-hint="showHint"
       :is-daily-challenge="isDailyChallengeMode"
       :daily-challenge-title="dailyChallenge?.title"
     />
 
+    <RescueGameHUD
+      v-if="rescueGameState.isPlaying && !rescueGameState.isGameOver && isRescueMode"
+      :state="rescueGameState"
+      :show-hint="showRescueHint"
+    />
+
     <StartScreen
-      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard && !showResearch"
+      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard && !showResearch && !showRescueIntro"
       :high-score="highScore"
       :collection-stats="collectionStats"
       :daily-challenge-completed="dailyChallengeSystem.isTodayCompleted()"
@@ -28,6 +34,14 @@
       @open-prep="openPrep"
       @open-daily-challenge="openDailyChallenge"
       @open-research="openResearch"
+      @open-rescue-mode="openRescueIntro"
+    />
+
+    <RescueModeIntro
+      v-if="showRescueIntro && !gameStarted"
+      :best-scores="rescueBestScores"
+      @start="handleRescueStart"
+      @back="closeRescueIntro"
     />
 
     <DailyChallengeScreen
@@ -59,7 +73,7 @@
     />
 
     <GameOverScreen
-      v-if="gameState.isGameOver && !showCollection && !showDailyLeaderboard && !showResearch"
+      v-if="gameState.isGameOver && !showCollection && !showDailyLeaderboard && !showResearch && !isRescueMode"
       :score="gameState.score"
       :level="gameState.level"
       :discovered="gameState.discoveredTargets"
@@ -77,6 +91,15 @@
       @home="handleHome"
       @open-collection="openCollection"
       @open-leaderboard="openDailyLeaderboardFromGameOver"
+    />
+
+    <RescueGameOver
+      v-if="rescueGameState.isGameOver && isRescueMode"
+      :result="lastRescueResult!"
+      :is-new-high-score="isRescueNewRecord"
+      @restart="handleRescueRestart"
+      @home="handleHome"
+      @select-level="openRescueIntroFromRescueOver"
     />
 
     <CollectionCenter
@@ -98,7 +121,7 @@
     />
 
     <div
-      v-if="gameState.isPlaying && !gameState.isGameOver && !showCollection"
+      v-if="(gameState.isPlaying || rescueGameState.isPlaying) && !showCollection"
       class="touch-area"
       @click="handleClick"
       @touchstart.prevent="handleTouch"
@@ -108,11 +131,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, DailyChallengeConfig, ResearchStationStats, ExpeditionReward } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, DailyChallengeConfig, ResearchStationStats, ExpeditionReward, RescueGameState, RescueResult, RescueEvent } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { DailyChallengeSystem } from './game/DailyChallengeSystem';
 import { ResearchStationSystem } from './game/ResearchStationSystem';
+import { RescueModeSystem } from './game/RescueModeSystem';
+import { RescueRenderer } from './game/RescueRenderer';
+import { RESCUE_CONFIG } from './config/gameConfig';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT } from './config/expeditionConfig';
 import GameHUD from './components/GameHUD.vue';
@@ -124,6 +150,9 @@ import ExpeditionPrep from './components/ExpeditionPrep.vue';
 import DailyChallengeScreen from './components/DailyChallengeScreen.vue';
 import DailyChallengeDetail from './components/DailyChallengeDetail.vue';
 import ResearchStation from './components/ResearchStation.vue';
+import RescueModeIntro from './components/RescueModeIntro.vue';
+import RescueGameHUD from './components/RescueGameHUD.vue';
+import RescueGameOver from './components/RescueGameOver.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -131,22 +160,31 @@ const floatingScoreRef = ref<InstanceType<typeof FloatingScore> | null>(null);
 
 const gameStarted = ref(false);
 const showHint = ref(true);
+const showRescueHint = ref(true);
 const highScore = ref(0);
 const showCollection = ref(false);
 const showPrep = ref(false);
 const showDailyChallenge = ref(false);
 const showDailyLeaderboard = ref(false);
 const showResearch = ref(false);
+const showRescueIntro = ref(false);
 const leaderboardOpenedFromGameOver = ref(false);
+const rescueIntroOpenedFromRescueOver = ref(false);
 const isDailyChallengeMode = ref(false);
+const isRescueMode = ref(false);
 const isDailyNewRecord = ref(false);
+const isRescueNewRecord = ref(false);
 const sessionUnlocks = ref<UnlockEvent[]>([]);
 const currentLoadout = ref<ExpeditionLoadout>({ ...DEFAULT_LOADOUT });
 const lastExpeditionReward = ref<ExpeditionReward | null>(null);
+const lastRescueResult = ref<RescueResult | null>(null);
+const rescueBestScores = ref<number[]>([0, 0, 0, 0, 0]);
+const currentRescueLevel = ref(1);
 
 const collectionSystem = new CollectionSystem();
 const dailyChallengeSystem = new DailyChallengeSystem();
 const researchStationSystem = new ResearchStationSystem();
+const rescueModeSystem = new RescueModeSystem();
 
 const dailyChallenge = ref<DailyChallengeConfig | null>(null);
 
@@ -180,10 +218,40 @@ const gameState = reactive<GameState>({
   totalTargets: 0,
 });
 
+const rescueGameState = reactive<RescueGameState>(rescueModeSystem.getState());
+
 let gameController: GameController | null = null;
+let rescueRenderer: RescueRenderer | null = null;
 
 const updateState = (state: GameState) => {
   Object.assign(gameState, state);
+};
+
+const updateRescueState = (state: RescueGameState) => {
+  Object.assign(rescueGameState, state);
+};
+
+const handleRescueEvent = (event: RescueEvent) => {
+  if (event.type === 'capsule_detected' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    const world = rescueRenderer?.screenToWorld(event.position.x, event.position.y);
+    let x = rect.width / 2;
+    let y = rect.height / 2;
+    if (world) {
+      x = Math.max(40, Math.min(rect.width - 40, world.x));
+      y = Math.max(60, Math.min(rect.height - 160, event.position.y));
+    }
+    floatingScoreRef.value.addScore(RESCUE_CONFIG.SCORE.DETECT_BONUS, '发现信号', 'collect', x, y);
+  } else if (event.type === 'false_report' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(event.penalty, '误报!', 'damage', rect.width / 2, rect.height / 2);
+  } else if (event.type === 'capsule_confirmed' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(event.bonus, '确认目标', 'collect', rect.width / 2, rect.height / 2);
+  } else if (event.type === 'rescue_success' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(event.bonus, '救援成功!', 'collect', rect.width / 2, rect.height / 2);
+  }
 };
 
 const handleScoreEvent = (event: ScoreEvent) => {
@@ -240,13 +308,134 @@ const handleGameOver = (finalScore: number) => {
   }
 };
 
+const handleRescueGameOver = (result: RescueResult) => {
+  lastRescueResult.value = result;
+  isRescueNewRecord.value = false;
+
+  const levelIdx = result.level - 1;
+  if (levelIdx >= 0 && levelIdx < rescueBestScores.value.length) {
+    if (result.score > rescueBestScores.value[levelIdx]) {
+      rescueBestScores.value[levelIdx] = result.score;
+      isRescueNewRecord.value = true;
+      try {
+        localStorage.setItem('deepSeaSonar_rescueBestScores', JSON.stringify(rescueBestScores.value));
+      } catch (_e) {}
+    }
+  }
+
+  if (result.rescuePoints > 0) {
+    researchStationSystem.grantExpeditionReward(
+      result.score,
+      result.level,
+      result.capsulesRescued,
+      false
+    );
+    refreshResearchStation();
+  }
+};
+
 const handleLevelUp = (_newLevel: number) => {};
+
+const openRescueIntro = () => {
+  showRescueIntro.value = true;
+};
+
+const closeRescueIntro = () => {
+  showRescueIntro.value = false;
+};
+
+const openRescueIntroFromRescueOver = () => {
+  rescueIntroOpenedFromRescueOver.value = true;
+  showRescueIntro.value = true;
+};
+
+const handleRescueStart = (level: number) => {
+  isRescueMode.value = true;
+  isDailyChallengeMode.value = false;
+  currentRescueLevel.value = level;
+  showRescueIntro.value = false;
+  rescueIntroOpenedFromRescueOver.value = false;
+  gameStarted.value = true;
+
+  if (gameController) {
+    gameController.destroy();
+    gameController = null;
+  }
+
+  if (canvasRef.value && !rescueRenderer) {
+    rescueRenderer = new RescueRenderer(canvasRef.value, RESCUE_CONFIG.MAP_WIDTH, RESCUE_CONFIG.MAP_HEIGHT);
+    startRescueGameLoop();
+  }
+
+  rescueModeSystem.setCallbacks(updateRescueState, handleRescueEvent, handleRescueGameOver);
+  rescueModeSystem.startGame(level);
+
+  if (rescueRenderer) {
+    rescueRenderer.clear();
+  }
+
+  setTimeout(() => {
+    showRescueHint.value = false;
+  }, 6000);
+};
+
+const handleRescueRestart = () => {
+  if (!rescueRenderer) return;
+  rescueRenderer.clear();
+  rescueModeSystem.startGame(currentRescueLevel.value);
+  setTimeout(() => {
+    showRescueHint.value = false;
+  }, 4000);
+};
+
+const startRescueGameLoop = () => {
+  if (!rescueRenderer) return;
+  rescueRenderer.getTicker().add((deltaTime) => {
+    if (!rescueGameState.isPlaying || rescueGameState.isPaused || rescueGameState.isGameOver) return;
+
+    const delta = (deltaTime as unknown as { deltaTime?: number }).deltaTime
+      ? (deltaTime as unknown as { deltaTime: number }).deltaTime / 60
+      : (deltaTime as number) / 60;
+
+    rescueModeSystem.update(delta);
+
+    if (rescueRenderer) {
+      rescueRenderer.updateParticles(delta);
+      rescueRenderer.updateCamera(rescueGameState.playerPosition.y);
+      rescueRenderer.renderInterferenceZones(rescueModeSystem.getInterferenceZones());
+      rescueRenderer.renderPaths(rescueModeSystem.getSafePaths());
+      rescueRenderer.renderCapsules(rescueModeSystem.getCapsules());
+      rescueRenderer.renderEchoPoints(rescueModeSystem.getEchoPoints() as any);
+      rescueRenderer.renderSonarWaves(rescueModeSystem.getSonarWaves() as any);
+      rescueRenderer.drawPlayer(rescueGameState.playerPosition);
+    }
+  });
+};
 
 const handleStart = () => {
   isDailyChallengeMode.value = false;
+  isRescueMode.value = false;
   isDailyNewRecord.value = false;
   gameController?.setDailyChallenge(null);
   gameStarted.value = true;
+
+  if (rescueRenderer) {
+    rescueRenderer.destroy();
+    rescueRenderer = null;
+  }
+
+  if (canvasRef.value && !gameController) {
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController.setLoadout(currentLoadout.value);
+    gameController.setCallbacks(
+      updateState,
+      handleScoreEvent,
+      handleGameOver,
+      handleLevelUp,
+      handleUnlockEvent
+    );
+  }
+
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
   setTimeout(() => {
@@ -256,6 +445,7 @@ const handleStart = () => {
 
 const handleDailyChallengeStart = () => {
   isDailyChallengeMode.value = true;
+  isRescueMode.value = false;
   isDailyNewRecord.value = false;
   refreshDailyChallenge();
   if (dailyChallenge.value) {
@@ -263,6 +453,24 @@ const handleDailyChallengeStart = () => {
   }
   showDailyChallenge.value = false;
   gameStarted.value = true;
+
+  if (rescueRenderer) {
+    rescueRenderer.destroy();
+    rescueRenderer = null;
+  }
+
+  if (canvasRef.value && !gameController) {
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController.setLoadout(currentLoadout.value);
+    gameController.setCallbacks(
+      updateState,
+      handleScoreEvent,
+      handleGameOver,
+      handleLevelUp,
+      handleUnlockEvent
+    );
+  }
+
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
   setTimeout(() => {
@@ -276,7 +484,26 @@ const handlePrepStart = (loadout: ExpeditionLoadout) => {
     localStorage.setItem('deepSeaSonar_loadout', JSON.stringify(loadout));
   } catch (_e) {}
   showPrep.value = false;
+  isRescueMode.value = false;
   gameStarted.value = true;
+
+  if (rescueRenderer) {
+    rescueRenderer.destroy();
+    rescueRenderer = null;
+  }
+
+  if (canvasRef.value && !gameController) {
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController.setLoadout(currentLoadout.value);
+    gameController.setCallbacks(
+      updateState,
+      handleScoreEvent,
+      handleGameOver,
+      handleLevelUp,
+      handleUnlockEvent
+    );
+  }
+
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
   setTimeout(() => {
@@ -334,7 +561,9 @@ const handleRestart = () => {
 const handleHome = () => {
   gameStarted.value = false;
   isDailyChallengeMode.value = false;
+  isRescueMode.value = false;
   isDailyNewRecord.value = false;
+  isRescueNewRecord.value = false;
   Object.assign(gameState, {
     score: 0,
     lives: 3,
@@ -347,13 +576,26 @@ const handleHome = () => {
     discoveredTargets: 0,
     totalTargets: 0,
   });
+  Object.assign(rescueGameState, rescueModeSystem.getState());
   showHint.value = true;
+  showRescueHint.value = true;
   showDailyLeaderboard.value = false;
   showResearch.value = false;
+  showRescueIntro.value = false;
   lastExpeditionReward.value = null;
+  lastRescueResult.value = null;
   refreshCollection();
   refreshDailyChallenge();
   refreshResearchStation();
+
+  if (rescueRenderer) {
+    rescueRenderer.destroy();
+    rescueRenderer = null;
+  }
+  if (gameController) {
+    gameController.destroy();
+    gameController = null;
+  }
 };
 
 const openCollection = () => {
@@ -388,7 +630,15 @@ const handleResearchReset = () => {
 };
 
 const getEventPosition = (clientX: number, clientY: number) => {
-  if (!canvasRef.value || !gameController) return null;
+  if (!canvasRef.value) return null;
+  if (isRescueMode.value) {
+    if (!rescueRenderer) return null;
+    const rect = canvasRef.value.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    return rescueRenderer.screenToWorld(x, y);
+  }
+  if (!gameController) return null;
   const rect = canvasRef.value.getBoundingClientRect();
   const x = clientX - rect.left;
   const y = clientY - rect.top;
@@ -397,7 +647,7 @@ const getEventPosition = (clientX: number, clientY: number) => {
 
 const handleClick = (e: MouseEvent) => {
   const pos = getEventPosition(e.clientX, e.clientY);
-  if (!pos || !gameController) return;
+  if (!pos) return;
   processInteraction(pos, e.clientX, e.clientY);
 };
 
@@ -405,16 +655,25 @@ const handleTouch = (e: TouchEvent) => {
   if (e.touches.length === 0) return;
   const touch = e.touches[0];
   const pos = getEventPosition(touch.clientX, touch.clientY);
-  if (!pos || !gameController) return;
+  if (!pos) return;
   processInteraction(pos, touch.clientX, touch.clientY);
 };
 
 const processInteraction = (worldPos: { x: number; y: number }, _screenX: number, _screenY: number) => {
-  if (!gameController) return;
+  if (isRescueMode.value) {
+    if (!rescueModeSystem) return;
 
-  const result = gameController.handleTap(worldPos);
-  if (!result.hit) {
-    gameController.fireSonar(worldPos);
+    const result = rescueModeSystem.handleTap(worldPos);
+    if (!result.handled) {
+      rescueModeSystem.fireSonar(worldPos);
+    }
+  } else {
+    if (!gameController) return;
+
+    const result = gameController.handleTap(worldPos);
+    if (!result.hit) {
+      gameController.fireSonar(worldPos);
+    }
   }
 };
 
@@ -428,6 +687,15 @@ onMounted(() => {
         const parsed = JSON.parse(savedLoadout);
         if (parsed && parsed.submarine && parsed.sonarChip && parsed.supplyPack) {
           currentLoadout.value = parsed;
+        }
+      } catch (_e) {}
+    }
+    const savedRescueScores = localStorage.getItem('deepSeaSonar_rescueBestScores');
+    if (savedRescueScores) {
+      try {
+        const parsed = JSON.parse(savedRescueScores);
+        if (Array.isArray(parsed) && parsed.length === 5) {
+          rescueBestScores.value = parsed;
         }
       } catch (_e) {}
     }
@@ -452,6 +720,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   gameController?.destroy();
+  rescueRenderer?.destroy();
 });
 </script>
 

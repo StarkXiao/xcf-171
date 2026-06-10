@@ -60,6 +60,19 @@
         <div class="daily-arrow">›</div>
       </div>
 
+      <div class="rescue-entry" @click="$emit('openRescueMode')">
+        <div class="rescue-icon-wrap">
+          <span class="rescue-icon">🚨</span>
+          <span class="rescue-pulse"></span>
+        </div>
+        <div class="rescue-info">
+          <div class="rescue-title">深海救援模式</div>
+          <div class="rescue-subtitle">紧急任务 · 定位失联舱体</div>
+        </div>
+        <div class="rescue-badge">NEW</div>
+        <div class="rescue-arrow">›</div>
+      </div>
+
       <div class="btn-row">
         <button class="prep-btn" @click="$emit('openPrep')">
           <span class="prep-icon">⚙️</span>
@@ -152,6 +165,7 @@ defineEmits<{
   (e: 'openPrep'): void;
   (e: 'openDailyChallenge'): void;
   (e: 'openResearch'): void;
+  (e: 'openRescueMode'): void;
 }>();
 
 const collectionPercent = computed(() => {
@@ -775,5 +789,139 @@ const formatNumber = (n: number) => n.toLocaleString();
 .daily-challenge-entry:hover .daily-arrow {
   transform: translateX(3px);
   color: rgba(255, 180, 100, 0.8);
+}
+
+.rescue-entry {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(255, 60, 100, 0.1), rgba(200, 30, 120, 0.1));
+  border: 1px solid rgba(255, 100, 150, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.rescue-entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 100, 150, 0.08),
+    transparent
+  );
+  animation: rescue-shine 2.5s ease-in-out infinite;
+}
+
+@keyframes rescue-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.rescue-entry:hover {
+  background: linear-gradient(135deg, rgba(255, 80, 120, 0.18), rgba(220, 50, 140, 0.18));
+  border-color: rgba(255, 120, 170, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(255, 80, 140, 0.18);
+}
+
+.rescue-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.rescue-icon {
+  font-size: 28px;
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+.rescue-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  background: rgba(255, 80, 100, 0.5);
+  border-radius: 50%;
+  animation: rescue-icon-pulse 1.2s ease-out infinite;
+}
+
+@keyframes rescue-icon-pulse {
+  0% {
+    width: 12px;
+    height: 12px;
+    opacity: 0.8;
+  }
+  100% {
+    width: 48px;
+    height: 48px;
+    opacity: 0;
+  }
+}
+
+.rescue-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rescue-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 180, 210, 0.95);
+  letter-spacing: 2px;
+}
+
+.rescue-subtitle {
+  font-size: 11px;
+  color: rgba(255, 160, 190, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rescue-badge {
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #ff3366, #ff6699);
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  animation: rescue-badge-pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(255, 80, 120, 0.5);
+}
+
+@keyframes rescue-badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.rescue-arrow {
+  font-size: 22px;
+  color: rgba(255, 120, 160, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.rescue-entry:hover .rescue-arrow {
+  transform: translateX(3px);
+  color: rgba(255, 150, 180, 0.8);
 }
 </style>

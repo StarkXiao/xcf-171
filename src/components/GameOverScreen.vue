@@ -82,7 +82,7 @@
             <span class="breakdown-label">得分奖励</span>
             <span class="breakdown-value">+{{ expeditionReward.breakdown.score }}</span>
           </div>
-          <div class="breakdown-item" v-if="expeditionReward.breakdown.dailyBonus > 0">
+          <div class="breakdown-item" v-if="(expeditionReward.breakdown.dailyBonus ?? 0) > 0">
             <span class="breakdown-label daily">每日挑战加成</span>
             <span class="breakdown-value daily">+{{ expeditionReward.breakdown.dailyBonus }}</span>
           </div>
@@ -178,7 +178,7 @@ const rankClass = computed(() => ({
   'rank-d': rank.value === 'D',
 }));
 
-const formatNumber = (n: number) => n.toLocaleString();
+const formatNumber = (n: number | undefined | null) => (n ?? 0).toLocaleString();
 </script>
 
 <style scoped>
