@@ -129,6 +129,20 @@
         <div class="ocean-editor-arrow">›</div>
       </div>
 
+      <div class="voyage-archive-entry" @click="$emit('openVoyageArchive')">
+        <div class="voyage-archive-icon-wrap">
+          <span class="voyage-archive-icon">📁</span>
+          <span class="voyage-archive-badge" v-if="voyageCount > 0">{{ voyageCount }}</span>
+        </div>
+        <div class="voyage-archive-info">
+          <div class="voyage-archive-title">航次档案室</div>
+          <div class="voyage-archive-subtitle">
+            {{ voyageCount > 0 ? `已归档 ${voyageCount} 局轨迹 · 支持筛选对比调优` : '暂无航次记录，完成探险后自动归档' }}
+          </div>
+        </div>
+        <div class="voyage-archive-arrow">›</div>
+      </div>
+
       <div class="collection-entry" @click="$emit('openCollection')">
         <div class="collection-entry-icon">📖</div>
         <div class="collection-entry-info">
@@ -169,6 +183,7 @@ const props = defineProps<{
   expeditionsCompleted: number;
   unlockedTechCount: number;
   totalTechCount: number;
+  voyageCount: number;
 }>();
 
 defineEmits<{
@@ -179,6 +194,7 @@ defineEmits<{
   (e: 'openResearch'): void;
   (e: 'openRescueMode'): void;
   (e: 'openOceanEditor'): void;
+  (e: 'openVoyageArchive'): void;
 }>();
 
 const collectionPercent = computed(() => {
@@ -1037,5 +1053,112 @@ const formatNumber = (n: number) => n.toLocaleString();
 .ocean-editor-entry:hover .ocean-editor-arrow {
   transform: translateX(3px);
   color: rgba(100, 255, 180, 0.8);
+}
+
+.voyage-archive-entry {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(0, 150, 200, 0.1), rgba(0, 100, 200, 0.1));
+  border: 1px solid rgba(0, 200, 255, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.voyage-archive-entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 200, 255, 0.08),
+    transparent
+  );
+  animation: voyage-archive-shine 3s ease-in-out infinite;
+}
+
+@keyframes voyage-archive-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.voyage-archive-entry:hover {
+  background: linear-gradient(135deg, rgba(0, 180, 230, 0.18), rgba(0, 130, 230, 0.18));
+  border-color: rgba(0, 200, 255, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 200, 255, 0.15);
+}
+
+.voyage-archive-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.voyage-archive-icon {
+  font-size: 28px;
+  display: block;
+}
+
+.voyage-archive-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: linear-gradient(135deg, #00c8ff, #0088cc);
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0, 200, 255, 0.5);
+}
+
+.voyage-archive-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.voyage-archive-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(0, 220, 255, 0.95);
+  letter-spacing: 2px;
+}
+
+.voyage-archive-subtitle {
+  font-size: 11px;
+  color: rgba(100, 200, 230, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voyage-archive-arrow {
+  font-size: 22px;
+  color: rgba(0, 200, 255, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.voyage-archive-entry:hover .voyage-archive-arrow {
+  transform: translateX(3px);
+  color: rgba(0, 220, 255, 0.85);
 }
 </style>

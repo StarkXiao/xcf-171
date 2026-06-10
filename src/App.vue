@@ -19,7 +19,7 @@
     />
 
     <StartScreen
-      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard && !showResearch && !showRescueIntro && !showOceanEditor"
+      v-if="!gameStarted && !showCollection && !showPrep && !showDailyChallenge && !showDailyLeaderboard && !showResearch && !showRescueIntro && !showOceanEditor && !showVoyageArchive"
       :high-score="highScore"
       :collection-stats="collectionStats"
       :daily-challenge-completed="dailyChallengeSystem.isTodayCompleted()"
@@ -29,6 +29,7 @@
       :expeditions-completed="researchStationStats.expeditionsCompleted"
       :unlocked-tech-count="researchStationStats.unlockedCount"
       :total-tech-count="researchStationStats.totalTechCount"
+      :voyage-count="voyageArchiveSystem.getRecords().length"
       @start="handleStart"
       @open-collection="openCollection"
       @open-prep="openPrep"
@@ -36,6 +37,7 @@
       @open-research="openResearch"
       @open-rescue-mode="openRescueIntro"
       @open-ocean-editor="openOceanEditor"
+      @open-voyage-archive="openVoyageArchive"
     />
 
     <OceanEditor
@@ -43,6 +45,12 @@
       :system="oceanEditorSystem"
       @close="closeOceanEditor"
       @start-level="handleOceanLevelStart"
+    />
+
+    <VoyageArchive
+      v-if="showVoyageArchive"
+      :system="voyageArchiveSystem"
+      @close="closeVoyageArchive"
     />
 
     <RescueModeIntro
@@ -150,6 +158,7 @@ import { ResearchStationSystem } from './game/ResearchStationSystem';
 import { RescueModeSystem } from './game/RescueModeSystem';
 import { RescueRenderer } from './game/RescueRenderer';
 import { OceanEditorSystem } from './game/OceanEditorSystem';
+import { VoyageArchiveSystem } from './game/VoyageArchiveSystem';
 import { RESCUE_CONFIG } from './config/gameConfig';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT } from './config/expeditionConfig';
@@ -166,6 +175,7 @@ import RescueModeIntro from './components/RescueModeIntro.vue';
 import RescueGameHUD from './components/RescueGameHUD.vue';
 import RescueGameOver from './components/RescueGameOver.vue';
 import OceanEditor from './components/OceanEditor.vue';
+import VoyageArchive from './components/VoyageArchive.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -182,6 +192,7 @@ const showDailyLeaderboard = ref(false);
 const showResearch = ref(false);
 const showRescueIntro = ref(false);
 const showOceanEditor = ref(false);
+const showVoyageArchive = ref(false);
 const leaderboardOpenedFromGameOver = ref(false);
 const rescueIntroOpenedFromRescueOver = ref(false);
 const isDailyChallengeMode = ref(false);
@@ -201,7 +212,8 @@ const currentRescueLevel = ref(1);
 const collectionSystem = new CollectionSystem();
 const dailyChallengeSystem = new DailyChallengeSystem();
 const researchStationSystem = new ResearchStationSystem();
-const rescueModeSystem = new RescueModeSystem();
+const voyageArchiveSystem = new VoyageArchiveSystem();
+const rescueModeSystem = new RescueModeSystem(voyageArchiveSystem);
 const oceanEditorSystem = new OceanEditorSystem();
 
 const dailyChallenge = ref<DailyChallengeConfig | null>(null);
@@ -437,6 +449,14 @@ const closeOceanEditor = () => {
   showOceanEditor.value = false;
 };
 
+const openVoyageArchive = () => {
+  showVoyageArchive.value = true;
+};
+
+const closeVoyageArchive = () => {
+  showVoyageArchive.value = false;
+};
+
 const handleOceanLevelStart = (level: OceanLevelConfig) => {
   isDailyChallengeMode.value = false;
   isRescueMode.value = false;
@@ -452,7 +472,7 @@ const handleOceanLevelStart = (level: OceanLevelConfig) => {
   }
 
   if (canvasRef.value && !gameController) {
-    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem, voyageArchiveSystem);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,
@@ -558,7 +578,7 @@ const handleStart = () => {
   }
 
   if (canvasRef.value && !gameController) {
-    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem, voyageArchiveSystem);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,
@@ -594,7 +614,7 @@ const handleDailyChallengeStart = () => {
   }
 
   if (canvasRef.value && !gameController) {
-    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem, voyageArchiveSystem);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,
@@ -628,7 +648,7 @@ const handlePrepStart = (loadout: ExpeditionLoadout) => {
   }
 
   if (canvasRef.value && !gameController) {
-    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem, voyageArchiveSystem);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,
@@ -701,6 +721,7 @@ const handleHome = () => {
   isDailyNewRecord.value = false;
   isRescueNewRecord.value = false;
   showOceanEditor.value = false;
+  showVoyageArchive.value = false;
   Object.assign(gameState, {
     score: 0,
     lives: 3,
@@ -882,7 +903,7 @@ onMounted(() => {
   refreshResearchStation();
 
   if (canvasRef.value) {
-    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem);
+    gameController = new GameController(canvasRef.value, collectionSystem, researchStationSystem, voyageArchiveSystem);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,

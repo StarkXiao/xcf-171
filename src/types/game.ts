@@ -341,6 +341,7 @@ export interface RescueResult {
   victory: boolean;
   score: number;
   capsulesRescued: number;
+  capsulesFound: number;
   totalRealCapsules: number;
   falseReports: number;
   timeRemaining: number;
@@ -356,6 +357,7 @@ export interface RescueResult {
   highRiskIncursions: number;
   blockerCollisions: number;
   safeTravelDistance: number;
+  totalPathLength: number;
   perfectPathBonus: boolean;
 }
 
@@ -438,3 +440,161 @@ export interface OceanEditorState {
 }
 
 export type EditorTab = 'basic' | 'targets' | 'danger' | 'rewards' | 'preview';
+
+export type VoyageMode = 'normal' | 'daily_challenge' | 'rescue' | 'custom';
+
+export interface TrajectoryPoint {
+  timestamp: number;
+  position: Position;
+  event?: 'sonar' | 'collect' | 'damage' | 'level_up' | 'pause' | 'rescue' | 'false_report' | 'path_offtrack';
+}
+
+export interface ScoreBreakdownItem {
+  category: 'creature' | 'wreck' | 'danger' | 'bonus' | 'level_up' | 'combo' | 'rescue' | 'path_bonus';
+  name: string;
+  count: number;
+  totalPoints: number;
+  avgPoints: number;
+}
+
+export interface ScoreBreakdown {
+  items: ScoreBreakdownItem[];
+  totalScore: number;
+  fromCreatures: number;
+  fromWrecks: number;
+  fromDanger: number;
+  fromBonus: number;
+  fromLevelUp: number;
+  fromCombo: number;
+}
+
+export interface HitRateStats {
+  totalSonarFired: number;
+  sonarWithDiscovery: number;
+  discoveryRate: number;
+  totalTaps: number;
+  tapsWithHit: number;
+  tapAccuracy: number;
+  tapsWithMiss: number;
+  totalTargets: number;
+  collectedTargets: number;
+  collectionRate: number;
+  discoveredTargets: number;
+  discoveryCoverage: number;
+  avgSonarPerDiscovery: number;
+}
+
+export type AnomalyEventType =
+  | 'danger_hit'
+  | 'sonar_empty'
+  | 'target_missed'
+  | 'false_report'
+  | 'path_offtrack'
+  | 'high_risk_enter'
+  | 'blocker_collision'
+  | 'yaw_warning'
+  | 'yaw_failure';
+
+export interface AnomalyEvent {
+  id: string;
+  type: AnomalyEventType;
+  timestamp: number;
+  position: Position;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  data?: Record<string, any>;
+}
+
+export interface DifficultyMetrics {
+  avgTimePerLevel: number;
+  livesLostPerLevel: number;
+  dangerHitRate: number;
+  sonarEfficiency: number;
+  averageLevelReached: number;
+  completionRate: number;
+}
+
+export interface DifficultyRecommendation {
+  id: string;
+  category: 'sonar' | 'target' | 'danger' | 'lives' | 'level_progression' | 'rescue';
+  severity: 'suggestion' | 'adjustment' | 'warning';
+  title: string;
+  description: string;
+  currentValue: number;
+  suggestedValue: number;
+  impact: string;
+}
+
+export interface VoyageRecord {
+  id: string;
+  mode: VoyageMode;
+  modeLabel: string;
+  startedAt: number;
+  endedAt: number;
+  duration: number;
+  finalScore: number;
+  peakScore: number;
+  finalLevel: number;
+  peakLevel: number;
+  loadout?: ExpeditionLoadout;
+  dailyChallengeTitle?: string;
+  rescueLevel?: number;
+  isVictory: boolean;
+  isNewRecord: boolean;
+  rank?: 'S' | 'A' | 'B' | 'C' | 'D';
+  trajectory: TrajectoryPoint[];
+  scoreBreakdown: ScoreBreakdown;
+  hitRate: HitRateStats;
+  anomalies: AnomalyEvent[];
+  difficultySnapshot?: {
+    mapWidth: number;
+    mapHeight: number;
+    targetDensity: { creature: number; wreck: number; danger: number };
+    initialLives: number;
+    sonarMaxCharges: number;
+    sonarRechargeTime: number;
+    targetsPerLevel: number;
+  };
+  rescueDetails?: {
+    capsulesFound: number;
+    capsulesRescued: number;
+    totalRealCapsules: number;
+    falseReports: number;
+    sonarUsed: number;
+    accuracy: number;
+    pathCompletionRate: number;
+    offtrackCount: number;
+    highRiskIncursions: number;
+    blockerCollisions: number;
+    safeTravelDistance: number;
+    totalPathLength: number;
+    perfectPathBonus: boolean;
+  };
+}
+
+export interface VoyageFilters {
+  modes: VoyageMode[];
+  dateRange: { start: number | null; end: number | null };
+  scoreRange: { min: number | null; max: number | null };
+  levelRange: { min: number | null; max: number | null };
+  anomalyTypes: AnomalyEventType[];
+  hasAnomaliesOnly: boolean;
+  searchText: string;
+}
+
+export interface VoyageArchiveStats {
+  totalVoyages: number;
+  totalPlayTime: number;
+  avgScore: number;
+  avgDuration: number;
+  avgLevel: number;
+  highScore: number;
+  highestLevel: number;
+  totalAnomalies: number;
+  avgDiscoveryRate: number;
+  avgTapAccuracy: number;
+  winRate: number;
+  modeBreakdown: Record<VoyageMode, { count: number; avgScore: number; highScore: number }>;
+  topAnomalies: { type: AnomalyEventType; count: number; description: string }[];
+}
+

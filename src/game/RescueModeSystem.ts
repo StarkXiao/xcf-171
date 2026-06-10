@@ -12,6 +12,7 @@ import type {
 } from '../types/game';
 import { RESCUE_CONFIG } from '../config/gameConfig';
 import { SeededRandom } from './SeededRandom';
+import { VoyageArchiveSystem, type ActiveVoyageBuilder } from './VoyageArchiveSystem';
 
 let nextCapsuleId = 1;
 let nextInterferenceId = 1;
@@ -76,9 +77,15 @@ export class RescueModeSystem {
   private onEvent?: RescueEventCallback;
   private onGameOver?: GameOverCallback;
 
-  constructor() {
+  private voyageArchive: VoyageArchiveSystem;
+  private activeVoyage: ActiveVoyageBuilder | null = null;
+  private lastTrajectoryTime: number = 0;
+  private discoveredCapsulesBefore: number = 0;
+
+  constructor(voyageArchiveSystem?: VoyageArchiveSystem) {
     this.rng = new SeededRandom(Date.now() & 0xffffffff);
     this.state = this.createInitialState();
+    this.voyageArchive = voyageArchiveSystem ?? new VoyageArchiveSystem();
   }
 
   private createInitialState(): RescueGameState {
@@ -192,6 +199,12 @@ export class RescueModeSystem {
     this.pathViolations = [];
 
     this.generateLevel(levelConfig);
+
+    this.activeVoyage = this.voyageArchive.startRescueVoyage(level);
+    this.activeVoyage.hitRate.totalTargets = this.capsules.length;
+    this.voyageArchive.recordTargetInfo(this.capsules.length);
+    this.lastTrajectoryTime = Date.now();
+    this.discoveredCapsulesBefore = 0;
 
     this.state.isPlaying = true;
     this.gameStartTime = Date.now();
@@ -799,6 +812,16 @@ export class RescueModeSystem {
     this.state.score += scorePenalty;
     this.state.path.yawWarnings++;
 
+    if (this.activeVoyage) {
+      this.voyageArchive.addAnomaly({
+        type: 'path_offtrack',
+        position: { ...this.state.playerPosition },
+        description: `偏航 ${Math.round(distance)}px，第 ${this.offtrackCount} 次`,
+        severity: this.state.path.yawWarnings >= this.state.path.maxYawWarnings ? 'critical' : 'medium',
+        data: { distance, count: this.offtrackCount },
+      });
+    }
+
     this.pathViolations.push({
       id: nextViolationId++,
       type: 'offtrack',
@@ -822,11 +845,28 @@ export class RescueModeSystem {
       const warnLevel = Math.floor(remaining);
       if (warnLevel !== this.lastYawWarning) {
         this.lastYawWarning = warnLevel;
+        if (this.activeVoyage) {
+          this.voyageArchive.addAnomaly({
+            type: 'yaw_warning',
+            position: { ...this.state.playerPosition },
+            description: `偏航警告，剩余 ${remaining} 次`,
+            severity: 'high',
+            data: { remaining },
+          });
+        }
         this.onEvent?.({ type: 'yaw_warning', remaining });
       }
     }
 
     if (this.state.path.yawWarnings >= this.state.path.maxYawWarnings) {
+      if (this.activeVoyage) {
+        this.voyageArchive.addAnomaly({
+          type: 'yaw_failure',
+          position: { ...this.state.playerPosition },
+          description: '偏航次数超限，任务失败',
+          severity: 'critical',
+        });
+      }
       this.onEvent?.({ type: 'yaw_failure' });
       this.endGame(false);
       return;
@@ -845,6 +885,16 @@ export class RescueModeSystem {
 
     this.state.timeRemaining = Math.max(0, this.state.timeRemaining - timePenalty);
     this.state.score += scorePenalty;
+
+    if (this.activeVoyage) {
+      this.voyageArchive.addAnomaly({
+        type: 'high_risk_enter',
+        position: { ...this.state.playerPosition },
+        description: `进入高危区，第 ${this.highRiskIncursions} 次`,
+        severity: 'high',
+        data: { zoneId, count: this.highRiskIncursions },
+      });
+    }
 
     this.pathViolations.push({
       id: nextViolationId++,
@@ -875,6 +925,16 @@ export class RescueModeSystem {
     this.state.timeRemaining = Math.max(0, this.state.timeRemaining - timePenalty);
     this.state.score += scorePenalty;
 
+    if (this.activeVoyage) {
+      this.voyageArchive.addAnomaly({
+        type: 'blocker_collision',
+        position: { ...this.state.playerPosition },
+        description: `阻断区碰撞，第 ${this.blockerCollisions} 次`,
+        severity: 'critical',
+        data: { zoneId, count: this.blockerCollisions },
+      });
+    }
+
     this.pathViolations.push({
       id: nextViolationId++,
       type: 'blocker_zone',
@@ -903,6 +963,7 @@ export class RescueModeSystem {
 
     this.state.sonarCharges--;
     this.totalSonarUsed++;
+    this.discoveredCapsulesBefore = this.state.capsulesFound;
 
     this.sonarWaves.push({
       id: nextWaveId++,
@@ -916,6 +977,17 @@ export class RescueModeSystem {
     });
 
     this.onEvent?.({ type: 'sonar_fired', position: { ...position } });
+
+    setTimeout(() => {
+      const discoveredAfter = this.state.capsulesFound;
+      if (this.activeVoyage) {
+        this.voyageArchive.recordSonarFired(position, this.discoveredCapsulesBefore, discoveredAfter);
+        if (discoveredAfter === this.discoveredCapsulesBefore) {
+          this.voyageArchive.recordEmptySonar(position);
+        }
+      }
+    }, 1000);
+
     this.notifyStateChange();
     return true;
   }
@@ -985,6 +1057,9 @@ export class RescueModeSystem {
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist <= capsule.radius + 20) {
+        if (this.activeVoyage) {
+          this.voyageArchive.recordTap(pos, true);
+        }
         if (capsule.status === 'confirmed' && capsule.isReal && this.state.path.followStatus === 'reached') {
           const activePath = this.safePaths.find(p => p.targetCapsuleId === capsule.id && p.completed);
           if (activePath) {
@@ -997,6 +1072,9 @@ export class RescueModeSystem {
       }
     }
 
+    if (this.activeVoyage) {
+      this.voyageArchive.recordTap(pos, false);
+    }
     return { handled: false };
   }
 
@@ -1007,6 +1085,16 @@ export class RescueModeSystem {
         this.state.score += RESCUE_CONFIG.GAME.FALSE_REPORT_PENALTY;
         capsule.status = 'unknown';
         capsule.discovered = false;
+
+        if (this.activeVoyage) {
+          this.voyageArchive.addAnomaly({
+            type: 'false_report',
+            position: capsule.position,
+            description: `误报：${capsule.name}`,
+            severity: 'medium',
+            data: { capsule: capsule.name },
+          });
+        }
 
         this.onEvent?.({
           type: 'false_report',
@@ -1079,6 +1167,12 @@ export class RescueModeSystem {
     this.movePlayer(deltaTime);
     this.checkPathViolations();
 
+    const now = Date.now();
+    if (now - this.lastTrajectoryTime >= 200 && this.activeVoyage) {
+      this.voyageArchive.recordTrajectory(this.state.playerPosition);
+      this.lastTrajectoryTime = now;
+    }
+
     for (const wave of this.sonarWaves) {
       if (!wave.active) continue;
       wave.radius += wave.speed * deltaTime;
@@ -1099,7 +1193,10 @@ export class RescueModeSystem {
     }
     this.echoPoints = this.echoPoints.filter(e => e.life > 0);
 
-    const now = Date.now();
+    if (this.activeVoyage) {
+      this.voyageArchive.recordDiscovered(this.state.capsulesFound);
+    }
+
     if (now - this.lastRechargeTime >= RESCUE_CONFIG.SONAR.RECHARGE_TIME) {
       if (this.state.sonarCharges < this.state.maxSonarCharges) {
         this.state.sonarCharges++;
@@ -1126,6 +1223,21 @@ export class RescueModeSystem {
     this.state.isVictory = victory;
 
     const result = this.calculateResult(victory);
+    if (this.activeVoyage) {
+      const dummyGameState: any = {
+        score: result.score,
+        lives: victory ? 1 : 0,
+        level: result.level,
+        isPlaying: false,
+        isPaused: false,
+        isGameOver: true,
+        sonarCharges: 0,
+        maxSonarCharges: 0,
+        discoveredTargets: result.capsulesRescued,
+        totalTargets: result.totalRealCapsules,
+      };
+      this.voyageArchive.finishVoyage(dummyGameState, victory, false, result);
+    }
     this.onEvent?.({ type: 'game_over', result });
     this.onGameOver?.(result);
     this.notifyStateChange();
@@ -1173,6 +1285,7 @@ export class RescueModeSystem {
       victory,
       score: finalScore,
       capsulesRescued: this.state.capsulesRescued,
+      capsulesFound: this.state.capsulesFound,
       totalRealCapsules: this.state.totalRealCapsules,
       falseReports: this.state.falseReports,
       timeRemaining: Math.ceil(this.state.timeRemaining),
@@ -1190,11 +1303,16 @@ export class RescueModeSystem {
       highRiskIncursions: this.highRiskIncursions,
       blockerCollisions: this.blockerCollisions,
       safeTravelDistance: Math.round(this.state.path.safeDistanceTraveled),
+      totalPathLength: this.state.path.totalPathLength,
       perfectPathBonus,
     };
   }
 
   private notifyStateChange() {
     this.onStateChange?.({ ...this.state });
+  }
+
+  getVoyageArchive(): VoyageArchiveSystem {
+    return this.voyageArchive;
   }
 }

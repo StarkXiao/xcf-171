@@ -9,6 +9,7 @@ import { CollectionSystem } from './CollectionSystem';
 import { ResearchStationSystem } from './ResearchStationSystem';
 import { applyChallengeRules } from './DailyChallengeSystem';
 import { RewardSystem, type RewardTriggeredEvent } from './RewardSystem';
+import { VoyageArchiveSystem, type ActiveVoyageBuilder } from './VoyageArchiveSystem';
 import * as PIXI from 'pixi.js';
 
 export class GameController {
@@ -19,6 +20,8 @@ export class GameController {
   private collection: CollectionSystem;
   private researchStation: ResearchStationSystem;
   private rewardSystem: RewardSystem;
+  private voyageArchive: VoyageArchiveSystem;
+  private activeVoyage: ActiveVoyageBuilder | null = null;
 
   private targets: Target[] = [];
   private dangerZones: DangerZone[] = [];
@@ -42,13 +45,14 @@ export class GameController {
   private onUnlock?: (event: UnlockEvent) => void;
   private onRewardTriggered?: (event: RewardTriggeredEvent) => void;
 
-  constructor(container: HTMLElement, collectionSystem?: CollectionSystem, researchStationSystem?: ResearchStationSystem) {
+  constructor(container: HTMLElement, collectionSystem?: CollectionSystem, researchStationSystem?: ResearchStationSystem, voyageArchiveSystem?: VoyageArchiveSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
     this.researchStation = researchStationSystem ?? new ResearchStationSystem();
     this.currentEffects = applyTechEffects(
       computeLoadoutEffects(this.currentLoadout),
       this.researchStation.getAggregatedEffects()
     );
+    this.voyageArchive = voyageArchiveSystem ?? new VoyageArchiveSystem();
 
     this.renderer = new MapRenderer(container, GAME_CONFIG.MAP_WIDTH, GAME_CONFIG.MAP_HEIGHT);
     this.sonar = new SonarSystem();
@@ -170,7 +174,13 @@ export class GameController {
 
     this.scoreSystem.setStateCallbacks(
       (state) => this.onStateChange?.(state),
-      (event) => this.onScoreEvent?.(event)
+      (event) => {
+        const currentState = this.scoreSystem.getState();
+        if (this.activeVoyage) {
+          this.voyageArchive.recordScoreEvent(event, currentState);
+        }
+        this.onScoreEvent?.(event);
+      }
     );
 
     this.rewardSystem.setCallbacks({
@@ -199,6 +209,16 @@ export class GameController {
       y: 80,
     };
     this.moveTarget = { ...this.playerPosition };
+
+    const mode = this.dailyChallenge ? 'daily_challenge' : 'normal';
+    this.activeVoyage = this.voyageArchive.startVoyage(
+      mode as any,
+      this.currentLoadout,
+      this.dailyChallenge,
+      this.customConfig
+    );
+    this.activeVoyage.hitRate.totalTargets = this.targets.length;
+    this.voyageArchive.recordTargetInfo(this.targets.length);
 
     this.dangerZones = this.customConfig?.DANGER_ZONES ? [...this.customConfig.DANGER_ZONES] : [];
     const rewardRules = this.customConfig?.REWARD_RULES ? [...this.customConfig.REWARD_RULES] : [];
@@ -244,10 +264,17 @@ export class GameController {
     this.renderer.updateParticles(delta);
     this.updatePlayerPosition(delta);
 
+    const discoveredBefore = this.scoreSystem.getState().discoveredTargets;
     const { discoveredTargetIds } = this.sonar.update(delta, this.targets);
     for (const _id of discoveredTargetIds) {
       this.scoreSystem.discoverTarget();
       this.rewardSystem.recordDiscover();
+    }
+    const stateAfterDiscover = this.scoreSystem.getState();
+    if (this.activeVoyage) {
+      this.voyageArchive.recordDiscovered(stateAfterDiscover.discoveredTargets);
+      this.voyageArchive.recordTrajectory(this.playerPosition);
+      this.voyageArchive.updateGameState(stateAfterDiscover);
     }
 
     this.renderer.updateCamera(this.playerPosition.y);
@@ -309,6 +336,9 @@ export class GameController {
         const baseDamage = this.computeDangerDamage(zone);
         if (baseDamage > 0) {
           const alive = this.scoreSystem.takeDamage(baseDamage, `${zone.name}`);
+          if (this.activeVoyage) {
+            this.voyageArchive.recordDamage(this.playerPosition, zone.name, baseDamage);
+          }
           this.rewardSystem.recordDamage();
           if (!alive) {
             this.scoreSystem.endGame();
@@ -371,6 +401,7 @@ export class GameController {
     if (!this.scoreSystem.useSonar()) return false;
 
     const worldPos = { ...position };
+    const discoveredBefore = this.scoreSystem.getState().discoveredTargets;
     const { radiusMul, extraCost } = this.computeSonarInterference(worldPos);
 
     if (extraCost > 0) {
@@ -394,6 +425,15 @@ export class GameController {
         this.customConfig ? cfg.SONAR.SPEED : this.currentEffects.sonarSpeed,
         this.currentEffects.precisionBonus
       );
+      setTimeout(() => {
+        const discoveredAfter = this.scoreSystem.getState().discoveredTargets;
+        if (this.activeVoyage) {
+          this.voyageArchive.recordSonarFired(worldPos, discoveredBefore, discoveredAfter);
+          if (discoveredAfter === discoveredBefore) {
+            this.voyageArchive.recordEmptySonar(worldPos);
+          }
+        }
+      }, 800);
     }, 100);
 
     this.renderer.addDiscoveredArea(worldPos, effectiveRadius);
@@ -421,6 +461,9 @@ export class GameController {
         }
 
         const alive = this.scoreSystem.collectTarget(target);
+        if (this.activeVoyage) {
+          this.voyageArchive.recordTap(worldPos, true);
+        }
 
         if (target.type === 'creature') {
           this.rewardSystem.recordCollect('creature');
@@ -439,6 +482,10 @@ export class GameController {
         if (this.scoreSystem.checkLevelUp(this.collectedCreaturesAndWrecks)) {
           const state = this.scoreSystem.getState();
           this.targets.push(...this.targetGenerator.generateTargets(state.level));
+          if (this.activeVoyage) {
+            this.voyageArchive.recordLevelUp(state.level);
+            this.voyageArchive.recordTargetInfo(this.targets.length);
+          }
           this.onLevelUp?.(state.level);
         }
 
@@ -450,6 +497,9 @@ export class GameController {
 
         return { hit: true, target };
       }
+    }
+    if (this.activeVoyage) {
+      this.voyageArchive.recordTap(worldPos, false);
     }
     return { hit: false };
   }
@@ -487,5 +537,15 @@ export class GameController {
 
   destroy() {
     this.renderer.destroy();
+  }
+
+  getVoyageArchive(): VoyageArchiveSystem {
+    return this.voyageArchive;
+  }
+
+  finishVoyage(isNewRecord: boolean) {
+    const state = this.scoreSystem.getState();
+    const isVictory = state.lives > 0 && !state.isGameOver;
+    return this.voyageArchive.finishVoyage(state, isVictory, isNewRecord);
   }
 }
