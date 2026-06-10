@@ -146,6 +146,55 @@ export class ScoreSystem {
     }
   }
 
+  addSonarCharges(amount: number) {
+    if (amount <= 0) return;
+    this.state.sonarCharges = Math.min(
+      this.state.sonarCharges + amount,
+      this.state.maxSonarCharges + amount
+    );
+    this.notifyStateChange();
+  }
+
+  addBonus(points: number, name: string = '奖励') {
+    const effectivePoints = Math.round(points * this.params.scoreMul);
+    this.state.score += effectivePoints;
+    this.onScoreEvent?.({
+      points: effectivePoints,
+      targetName: name,
+      type: 'bonus',
+      position: { x: 0, y: 0 },
+    });
+    this.notifyStateChange();
+  }
+
+  addLife(amount: number) {
+    if (amount <= 0) return;
+    this.state.lives += amount;
+    this.onScoreEvent?.({
+      points: 0,
+      targetName: `生命 +${amount}`,
+      type: 'bonus',
+      position: { x: 0, y: 0 },
+    });
+    this.notifyStateChange();
+  }
+
+  takeDamage(lives: number, reason: string = '危险'): boolean {
+    this.state.lives -= lives;
+    this.onScoreEvent?.({
+      points: 0,
+      targetName: reason,
+      type: 'damage',
+      position: { x: this.state.score, y: 0 },
+    });
+    if (this.state.lives <= 0) {
+      this.state.isGameOver = true;
+      this.state.isPlaying = false;
+    }
+    this.notifyStateChange();
+    return this.state.lives > 0;
+  }
+
   checkLevelUp(collectedCount: number): boolean {
     const needed = GAME_CONFIG.GAME.TARGETS_PER_LEVEL + this.state.level * 2;
     if (collectedCount >= needed) {

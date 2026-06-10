@@ -1,4 +1,4 @@
-import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, DailyChallengeConfig } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, DailyChallengeConfig, DangerZone } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { computeLoadoutEffects, DEFAULT_LOADOUT, applyTechEffects } from '../config/expeditionConfig';
 import { MapRenderer } from './MapRenderer';
@@ -8,6 +8,7 @@ import { ScoreSystem, type ScoreEvent } from './ScoreSystem';
 import { CollectionSystem } from './CollectionSystem';
 import { ResearchStationSystem } from './ResearchStationSystem';
 import { applyChallengeRules } from './DailyChallengeSystem';
+import { RewardSystem, type RewardTriggeredEvent } from './RewardSystem';
 import * as PIXI from 'pixi.js';
 
 export class GameController {
@@ -17,11 +18,14 @@ export class GameController {
   private scoreSystem: ScoreSystem;
   private collection: CollectionSystem;
   private researchStation: ResearchStationSystem;
+  private rewardSystem: RewardSystem;
 
   private targets: Target[] = [];
+  private dangerZones: DangerZone[] = [];
   private playerPosition: Position;
   private isInitialized: boolean = false;
   private lastRechargeTime: number = 0;
+  private lastDangerCheckTime: number = 0;
   private collectedCount: number = 0;
   private collectedCreaturesAndWrecks: number = 0;
   private currentLoadout: ExpeditionLoadout;
@@ -35,6 +39,7 @@ export class GameController {
   private onGameOver?: (finalScore: number) => void;
   private onLevelUp?: (newLevel: number) => void;
   private onUnlock?: (event: UnlockEvent) => void;
+  private onRewardTriggered?: (event: RewardTriggeredEvent) => void;
 
   constructor(container: HTMLElement, collectionSystem?: CollectionSystem, researchStationSystem?: ResearchStationSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
@@ -54,6 +59,7 @@ export class GameController {
       scoreMul: this.currentEffects.scoreMul,
     });
     this.collection = collectionSystem ?? new CollectionSystem();
+    this.rewardSystem = new RewardSystem();
 
     this.playerPosition = {
       x: GAME_CONFIG.MAP_WIDTH / 2,
@@ -150,18 +156,28 @@ export class GameController {
     onScoreEvent: (event: ScoreEvent) => void,
     onGameOver: (finalScore: number) => void,
     onLevelUp: (newLevel: number) => void,
-    onUnlock?: (event: UnlockEvent) => void
+    onUnlock?: (event: UnlockEvent) => void,
+    onRewardTriggered?: (event: RewardTriggeredEvent) => void
   ) {
     this.onStateChange = onStateChange;
     this.onScoreEvent = onScoreEvent;
     this.onGameOver = onGameOver;
     this.onLevelUp = onLevelUp;
     this.onUnlock = onUnlock;
+    this.onRewardTriggered = onRewardTriggered;
 
     this.scoreSystem.setStateCallbacks(
       (state) => this.onStateChange?.(state),
       (event) => this.onScoreEvent?.(event)
     );
+
+    this.rewardSystem.setCallbacks({
+      onRewardTriggered: (event) => this.onRewardTriggered?.(event),
+      addPoints: (points, reason) => this.scoreSystem.addBonus(points, reason),
+      addLife: (amount) => this.scoreSystem.addLife(amount),
+      addSonarCharge: (amount) => this.scoreSystem.addSonarCharges(amount),
+      getScoreMul: () => this.currentEffects.scoreMul,
+    });
   }
 
   startGame() {
@@ -175,10 +191,16 @@ export class GameController {
     this.collectedCount = 0;
     this.collectedCreaturesAndWrecks = 0;
     this.lastRechargeTime = Date.now();
+    this.lastDangerCheckTime = Date.now();
     this.playerPosition = {
       x: cfg.MAP_WIDTH / 2,
       y: 80,
     };
+
+    this.dangerZones = this.customConfig?.DANGER_ZONES ? [...this.customConfig.DANGER_ZONES] : [];
+    const rewardRules = this.customConfig?.REWARD_RULES ? [...this.customConfig.REWARD_RULES] : [];
+    this.rewardSystem.setRules(rewardRules);
+    this.rewardSystem.startGame(this.targets.length, 0);
 
     if (!this.isInitialized) {
       this.isInitialized = true;
@@ -186,6 +208,7 @@ export class GameController {
     }
 
     this.renderer.addDiscoveredArea(this.playerPosition, 120);
+    this.renderer.renderDangerZones(this.dangerZones);
 
     if (this.currentEffects.intelligenceRadar) {
       this.renderer.addDiscoveredArea(this.playerPosition, 250);
@@ -220,9 +243,14 @@ export class GameController {
     const { discoveredTargetIds } = this.sonar.update(delta, this.targets);
     for (const _id of discoveredTargetIds) {
       this.scoreSystem.discoverTarget();
+      this.rewardSystem.recordDiscover();
     }
 
     this.renderer.updateCamera(this.playerPosition.y);
+
+    if (this.dangerZones.length > 0) {
+      this.checkPlayerDangerZones();
+    }
 
     if (!this.disableSonarRecharge) {
       const now = Date.now();
@@ -235,21 +263,109 @@ export class GameController {
     }
   }
 
+  private checkPlayerDangerZones() {
+    const now = Date.now();
+    const checkInterval = 500;
+    if (now - this.lastDangerCheckTime < checkInterval) return;
+    this.lastDangerCheckTime = now;
+
+    for (const zone of this.dangerZones) {
+      const dx = this.playerPosition.x - zone.position.x;
+      const dy = this.playerPosition.y - zone.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < zone.radius) {
+        const baseDamage = this.computeDangerDamage(zone);
+        if (baseDamage > 0) {
+          const alive = this.scoreSystem.takeDamage(baseDamage, `${zone.name}`);
+          this.rewardSystem.recordDamage();
+          if (!alive) {
+            this.scoreSystem.endGame();
+            this.finalizeRewards();
+            this.onGameOver?.(this.scoreSystem.getFinalScore());
+          }
+        }
+      }
+    }
+  }
+
+  private computeDangerDamage(zone: DangerZone): number {
+    const typeDamageMap: Record<DangerZone['type'], number> = {
+      minefield: 1,
+      volcano: 1,
+      vortex: 1,
+      toxic: 1,
+    };
+    const baseDamage = typeDamageMap[zone.type] ?? 1;
+    return Math.max(1, Math.round(baseDamage * zone.intensity));
+  }
+
+  private computeSonarInterference(sonarPos: Position): { radiusMul: number; extraCost: number } {
+    if (this.dangerZones.length === 0) return { radiusMul: 1, extraCost: 0 };
+
+    let radiusMul = 1;
+    let extraCost = 0;
+
+    for (const zone of this.dangerZones) {
+      const dx = sonarPos.x - zone.position.x;
+      const dy = sonarPos.y - zone.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < zone.radius * 1.5) {
+        const influence = Math.max(0, 1 - dist / (zone.radius * 1.5));
+        if (zone.type === 'vortex') {
+          radiusMul *= 1 - influence * zone.intensity * 0.6;
+        } else if (zone.type === 'volcano') {
+          radiusMul *= 1 - influence * zone.intensity * 0.3;
+        } else if (zone.type === 'toxic') {
+          extraCost += Math.round(influence * zone.intensity);
+        }
+      }
+    }
+
+    return { radiusMul: Math.max(0.3, radiusMul), extraCost };
+  }
+
   private render() {
     this.renderer.drawPlayer(this.playerPosition);
     this.renderer.renderWaves(this.sonar.getWaves());
     this.renderer.renderEchos(this.sonar.getEchoPoints());
     this.renderer.renderTargets(this.targets);
+    if (this.dangerZones.length > 0) {
+      this.renderer.renderDangerZones(this.dangerZones);
+    }
   }
 
   fireSonar(position: Position): boolean {
     if (!this.scoreSystem.useSonar()) return false;
 
     const worldPos = { ...position };
-    this.sonar.emitSonar(worldPos);
+    const { radiusMul, extraCost } = this.computeSonarInterference(worldPos);
+
+    if (extraCost > 0) {
+      for (let i = 0; i < extraCost; i++) {
+        this.scoreSystem.useSonar();
+      }
+    }
+
     const cfg = this.getEffectiveConfig();
-    const radius = this.customConfig ? cfg.SONAR.MAX_RADIUS : this.currentEffects.sonarRadius;
-    this.renderer.addDiscoveredArea(worldPos, radius);
+    const baseRadius = this.customConfig ? cfg.SONAR.MAX_RADIUS : this.currentEffects.sonarRadius;
+    const effectiveRadius = Math.round(baseRadius * radiusMul);
+    const baseSpeed = this.customConfig ? cfg.SONAR.SPEED : this.currentEffects.sonarSpeed;
+    const effectiveSpeed = baseSpeed * Math.sqrt(radiusMul);
+
+    this.sonar.setParams(effectiveRadius, effectiveSpeed, this.currentEffects.precisionBonus);
+    this.sonar.emitSonar(worldPos);
+
+    setTimeout(() => {
+      this.sonar.setParams(
+        this.customConfig ? cfg.SONAR.MAX_RADIUS : this.currentEffects.sonarRadius,
+        this.customConfig ? cfg.SONAR.SPEED : this.currentEffects.sonarSpeed,
+        this.currentEffects.precisionBonus
+      );
+    }, 100);
+
+    this.renderer.addDiscoveredArea(worldPos, effectiveRadius);
     return true;
   }
 
@@ -274,7 +390,20 @@ export class GameController {
           this.collectedCreaturesAndWrecks++;
         }
 
+        if (target.type === 'creature' || target.type === 'wreck') {
+          const comboPoints = this.rewardSystem.applyComboToScore(target.points);
+          target.points = comboPoints;
+        }
+
         const alive = this.scoreSystem.collectTarget(target);
+
+        if (target.type === 'creature') {
+          this.rewardSystem.recordCollect('creature');
+        } else if (target.type === 'wreck') {
+          this.rewardSystem.recordCollect('wreck');
+        } else if (target.type === 'danger') {
+          this.rewardSystem.recordCollect('danger');
+        }
 
         const state = this.scoreSystem.getState();
         const unlockEvent = this.collection.recordTarget(target, state.level, target.points);
@@ -290,6 +419,7 @@ export class GameController {
 
         if (!alive) {
           this.scoreSystem.endGame();
+          this.finalizeRewards();
           this.onGameOver?.(this.scoreSystem.getFinalScore());
         }
 
@@ -297,6 +427,17 @@ export class GameController {
       }
     }
     return { hit: false };
+  }
+
+  private finalizeRewards() {
+    const events = this.rewardSystem.checkEndGameTriggers();
+    for (const event of events) {
+      this.onRewardTriggered?.(event);
+    }
+  }
+
+  getRewardSystem(): RewardSystem {
+    return this.rewardSystem;
   }
 
   getState(): GameState {

@@ -320,6 +320,27 @@ const handleUnlockEvent = (_event: UnlockEvent) => {
   refreshCollection();
 };
 
+const handleRewardTriggered = (event: import('./game/RewardSystem').RewardTriggeredEvent) => {
+  if (!floatingScoreRef.value || !containerRef.value) return;
+
+  const rect = containerRef.value.getBoundingClientRect();
+  const x = rect.width / 2;
+  const y = rect.height / 2;
+
+  let message = event.rule.name;
+  if (event.bonusType === 'score' && event.points > 0) {
+    message = `${event.rule.name} +${event.points}`;
+  } else if (event.bonusType === 'life') {
+    message = `${event.rule.name} 生命+${event.rule.value}`;
+  } else if (event.bonusType === 'sonar') {
+    message = `${event.rule.name} 声呐+${event.rule.value}`;
+  } else if (event.bonusType === 'combo') {
+    message = `${event.rule.name} x${event.rule.value}`;
+  }
+
+  floatingScoreRef.value.addScore(event.points, message, 'bonus', x, y - 50);
+};
+
 const handleGameOver = (finalScore: number) => {
   sessionUnlocks.value = gameController?.getSessionUnlocks() ?? [];
   refreshCollection();
@@ -438,7 +459,8 @@ const handleOceanLevelStart = (level: OceanLevelConfig) => {
       handleScoreEvent,
       handleGameOver,
       handleLevelUp,
-      handleUnlockEvent
+      handleUnlockEvent,
+      handleRewardTriggered
     );
   }
 
@@ -543,7 +565,8 @@ const handleStart = () => {
       handleScoreEvent,
       handleGameOver,
       handleLevelUp,
-      handleUnlockEvent
+      handleUnlockEvent,
+      handleRewardTriggered
     );
   }
 
@@ -578,7 +601,8 @@ const handleDailyChallengeStart = () => {
       handleScoreEvent,
       handleGameOver,
       handleLevelUp,
-      handleUnlockEvent
+      handleUnlockEvent,
+      handleRewardTriggered
     );
   }
 
@@ -611,7 +635,8 @@ const handlePrepStart = (loadout: ExpeditionLoadout) => {
       handleScoreEvent,
       handleGameOver,
       handleLevelUp,
-      handleUnlockEvent
+      handleUnlockEvent,
+      handleRewardTriggered
     );
   }
 
@@ -862,7 +887,8 @@ onMounted(() => {
       handleScoreEvent,
       handleGameOver,
       handleLevelUp,
-      handleUnlockEvent
+      handleUnlockEvent,
+      handleRewardTriggered
     );
   }
 });

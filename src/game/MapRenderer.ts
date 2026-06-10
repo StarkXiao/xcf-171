@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import type { Target, SonarWave, EchoPoint, Position } from '../types/game';
+import type { Target, SonarWave, EchoPoint, Position, DangerZone } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 
 export class MapRenderer {
@@ -12,6 +12,7 @@ export class MapRenderer {
   private fogContainer: PIXI.Container;
   private gridContainer: PIXI.Container;
   private particleContainer: PIXI.Container;
+  private dangerZoneContainer: PIXI.Container;
 
   private width: number;
   private height: number;
@@ -47,10 +48,12 @@ export class MapRenderer {
     this.echoContainer = new PIXI.Container();
     this.waveContainer = new PIXI.Container();
     this.particleContainer = new PIXI.Container();
+    this.dangerZoneContainer = new PIXI.Container();
 
     this.container.addChild(this.mapContainer);
     this.mapContainer.addChild(this.gridContainer);
     this.mapContainer.addChild(this.fogContainer);
+    this.mapContainer.addChild(this.dangerZoneContainer);
     this.mapContainer.addChild(this.targetContainer);
     this.mapContainer.addChild(this.echoContainer);
     this.mapContainer.addChild(this.waveContainer);
@@ -380,5 +383,161 @@ export class MapRenderer {
 
   public getMapSize(): { width: number; height: number } {
     return { width: this.width, height: this.height };
+  }
+
+  private drawDashedCircle(
+    g: PIXI.Graphics,
+    cx: number,
+    cy: number,
+    radius: number,
+    color: number,
+    alpha: number,
+    dashLength: number,
+    gapLength: number
+  ) {
+    const circumference = 2 * Math.PI * radius;
+    const step = dashLength + gapLength;
+    const totalSteps = Math.floor(circumference / step);
+    const actualStep = circumference / totalSteps;
+    const dashAngle = (dashLength / circumference) * 2 * Math.PI;
+
+    g.lineStyle(2, color, alpha);
+
+    for (let i = 0; i < totalSteps; i++) {
+      const startAngle = (i * actualStep / radius);
+      const endAngle = startAngle + dashAngle;
+
+      g.moveTo(
+        cx + Math.cos(startAngle) * radius,
+        cy + Math.sin(startAngle) * radius
+      );
+      g.arc(cx, cy, radius, startAngle, endAngle);
+    }
+  }
+
+  public renderDangerZones(zones: DangerZone[]) {
+    this.dangerZoneContainer.removeChildren();
+    if (!zones || zones.length === 0) return;
+
+    const now = Date.now() / 1000;
+
+    for (const zone of zones) {
+      const baseColor = this.getDangerZoneColor(zone.type);
+      const pulse = 0.5 + Math.sin(now * 2 + zone.id) * 0.3;
+
+      const outerGlow = new PIXI.Graphics();
+      outerGlow.beginFill(baseColor, 0.05 + pulse * 0.03);
+      outerGlow.drawCircle(zone.position.x, zone.position.y, zone.radius * 1.5);
+      outerGlow.endFill();
+
+      const halo = new PIXI.Graphics();
+      halo.lineStyle(2, baseColor, 0.25 + pulse * 0.15);
+      halo.drawCircle(zone.position.x, zone.position.y, zone.radius * 1.25);
+
+      const mainFill = new PIXI.Graphics();
+      mainFill.beginFill(baseColor, 0.12 + zone.intensity * 0.08);
+      mainFill.drawCircle(zone.position.x, zone.position.y, zone.radius);
+      mainFill.endFill();
+
+      const border = new PIXI.Graphics();
+      this.drawDashedCircle(border, zone.position.x, zone.position.y, zone.radius, baseColor, 0.6 + pulse * 0.2, 8, 6);
+
+      const innerRing = new PIXI.Graphics();
+      innerRing.lineStyle(1, baseColor, 0.3);
+      innerRing.drawCircle(zone.position.x, zone.position.y, zone.radius * 0.6);
+
+      const typeIcon = this.createDangerZoneIcon(zone.type, baseColor);
+      typeIcon.x = zone.position.x;
+      typeIcon.y = zone.position.y;
+
+      const nameLabel = new PIXI.Text(zone.name, {
+        fontSize: 11,
+        fontFamily: 'monospace',
+        fill: baseColor,
+        align: 'center',
+        wordWrap: true,
+        wordWrapWidth: zone.radius * 1.6,
+      });
+      nameLabel.anchor.set(0.5, 0.5);
+      nameLabel.x = zone.position.x;
+      nameLabel.y = zone.position.y + zone.radius * 0.75;
+      nameLabel.alpha = 0.85;
+
+      const intensityLabel = new PIXI.Text(`强度 ${Math.round(zone.intensity * 100)}%`, {
+        fontSize: 9,
+        fontFamily: 'monospace',
+        fill: 0xffffff,
+      });
+      intensityLabel.anchor.set(0.5, 0.5);
+      intensityLabel.x = zone.position.x;
+      intensityLabel.y = zone.position.y - zone.radius * 0.55;
+      intensityLabel.alpha = 0.6;
+
+      this.dangerZoneContainer.addChild(
+        outerGlow, halo, mainFill, innerRing, border, typeIcon, intensityLabel, nameLabel
+      );
+    }
+  }
+
+  private createDangerZoneIcon(type: DangerZone['type'], color: number): PIXI.Container {
+    const c = new PIXI.Container();
+    const size = 16;
+    const g = new PIXI.Graphics();
+    g.lineStyle(2, color, 1);
+
+    if (type === 'minefield') {
+      g.beginFill(color, 0.6);
+      g.drawCircle(0, 0, size * 0.5);
+      g.endFill();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        g.moveTo(Math.cos(a) * size * 0.5, Math.sin(a) * size * 0.5);
+        g.lineTo(Math.cos(a) * size * 0.85, Math.sin(a) * size * 0.85);
+      }
+      g.beginFill(0x000000, 1);
+      g.drawCircle(0, 0, size * 0.15);
+      g.endFill();
+    } else if (type === 'volcano') {
+      g.moveTo(0, -size * 0.7);
+      g.lineTo(size * 0.55, size * 0.5);
+      g.lineTo(-size * 0.55, size * 0.5);
+      g.closePath();
+      g.endFill();
+      g.beginFill(0xff6633, 0.9);
+      g.moveTo(0, -size * 0.4);
+      g.lineTo(size * 0.2, size * 0.1);
+      g.lineTo(-size * 0.2, size * 0.1);
+      g.closePath();
+      g.endFill();
+    } else if (type === 'vortex') {
+      for (let r = size * 0.2; r <= size * 0.7; r += size * 0.15) {
+        g.arc(0, 0, r, 0, Math.PI * 1.6);
+      }
+      g.beginFill(color, 0.5);
+      g.drawCircle(0, 0, size * 0.15);
+      g.endFill();
+    } else if (type === 'toxic') {
+      g.beginFill(color, 0.5);
+      g.drawCircle(0, -size * 0.2, size * 0.25);
+      g.drawCircle(size * 0.25, size * 0.1, size * 0.2);
+      g.drawCircle(-size * 0.2, size * 0.15, size * 0.22);
+      g.endFill();
+      g.lineStyle(2, 0xffffff, 0.9);
+      g.moveTo(-size * 0.3, size * 0.45);
+      g.lineTo(size * 0.3, size * 0.45);
+    }
+
+    c.addChild(g);
+    return c;
+  }
+
+  private getDangerZoneColor(type: DangerZone['type']): number {
+    switch (type) {
+      case 'minefield': return 0xff5533;
+      case 'volcano': return 0xff6600;
+      case 'vortex': return 0x9966ff;
+      case 'toxic': return 0x66dd33;
+      default: return 0xff3355;
+    }
   }
 }
