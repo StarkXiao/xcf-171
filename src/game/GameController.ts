@@ -23,6 +23,7 @@ export class GameController {
   private targets: Target[] = [];
   private dangerZones: DangerZone[] = [];
   private playerPosition: Position;
+  private moveTarget: Position;
   private isInitialized: boolean = false;
   private lastRechargeTime: number = 0;
   private lastDangerCheckTime: number = 0;
@@ -65,6 +66,7 @@ export class GameController {
       x: GAME_CONFIG.MAP_WIDTH / 2,
       y: 80,
     };
+    this.moveTarget = { ...this.playerPosition };
 
     this.sonar.setEchoCallback(() => {});
   }
@@ -196,6 +198,7 @@ export class GameController {
       x: cfg.MAP_WIDTH / 2,
       y: 80,
     };
+    this.moveTarget = { ...this.playerPosition };
 
     this.dangerZones = this.customConfig?.DANGER_ZONES ? [...this.customConfig.DANGER_ZONES] : [];
     const rewardRules = this.customConfig?.REWARD_RULES ? [...this.customConfig.REWARD_RULES] : [];
@@ -239,6 +242,7 @@ export class GameController {
 
   private update(delta: number) {
     this.renderer.updateParticles(delta);
+    this.updatePlayerPosition(delta);
 
     const { discoveredTargetIds } = this.sonar.update(delta, this.targets);
     for (const _id of discoveredTargetIds) {
@@ -261,6 +265,33 @@ export class GameController {
         this.lastRechargeTime = now;
       }
     }
+  }
+
+  private updatePlayerPosition(delta: number) {
+    const dx = this.moveTarget.x - this.playerPosition.x;
+    const dy = this.moveTarget.y - this.playerPosition.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 1) return;
+
+    const speed = 120 * delta * 60;
+    const lerpFactor = Math.min(1, speed / dist);
+    const moveStep = 0.08;
+
+    this.playerPosition.x += dx * Math.max(moveStep, lerpFactor);
+    this.playerPosition.y += dy * Math.max(moveStep, lerpFactor);
+
+    const mapSize = this.renderer.getMapSize();
+    this.playerPosition.x = Math.max(30, Math.min(mapSize.width - 30, this.playerPosition.x));
+    this.playerPosition.y = Math.max(30, Math.min(mapSize.height - 30, this.playerPosition.y));
+  }
+
+  setMoveTarget(pos: Position) {
+    const mapSize = this.renderer.getMapSize();
+    this.moveTarget = {
+      x: Math.max(30, Math.min(mapSize.width - 30, pos.x)),
+      y: Math.max(30, Math.min(mapSize.height - 30, pos.y)),
+    };
   }
 
   private checkPlayerDangerZones() {
@@ -367,12 +398,6 @@ export class GameController {
 
     this.renderer.addDiscoveredArea(worldPos, effectiveRadius);
     return true;
-  }
-
-  movePlayer(targetY: number) {
-    const mapSize = this.renderer.getMapSize();
-    targetY = Math.max(50, Math.min(mapSize.height - 50, targetY));
-    this.playerPosition.y += (targetY - this.playerPosition.y) * 0.15;
   }
 
   handleTap(worldPos: Position): { hit: boolean; target?: Target } {
