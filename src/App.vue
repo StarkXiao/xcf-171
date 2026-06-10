@@ -257,8 +257,9 @@ const handleRescueEvent = (event: RescueEvent) => {
   } else if (event.type === 'rescue_success' && floatingScoreRef.value && containerRef.value) {
     const rect = containerRef.value.getBoundingClientRect();
     floatingScoreRef.value.addScore(event.bonus, '救援成功!', 'collect', rect.width / 2, rect.height / 2);
-  } else if (event.type === 'path_assigned') {
-    rescueModeSystem.startFollowingPath(event.pathId);
+  } else if (event.type === 'path_start' && floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(0, '点击地图移动潜航器', 'bonus', rect.width / 2, rect.height / 3);
   } else if (event.type === 'path_offtrack' && floatingScoreRef.value && containerRef.value) {
     const rect = containerRef.value.getBoundingClientRect();
     floatingScoreRef.value.addScore(event.penalty, '偏航!', 'damage', rect.width / 2, rect.height / 2);
@@ -454,10 +455,12 @@ const startRescueGameLoop = () => {
       rescueRenderer.updateParticles(delta);
       rescueRenderer.updateCamera(rescueGameState.playerPosition.y);
       rescueRenderer.renderInterferenceZones(rescueModeSystem.getInterferenceZones());
-      rescueRenderer.renderPaths(rescueModeSystem.getSafePaths());
+      rescueRenderer.renderPaths(rescueModeSystem.getSafePaths(), rescueGameState.path);
       rescueRenderer.renderCapsules(rescueModeSystem.getCapsules());
       rescueRenderer.renderEchoPoints(rescueModeSystem.getEchoPoints() as any);
       rescueRenderer.renderSonarWaves(rescueModeSystem.getSonarWaves() as any);
+      rescueRenderer.renderMoveTarget(rescueModeSystem.getMoveTarget(), rescueGameState.playerPosition);
+      rescueRenderer.renderPathStateIndicator(rescueGameState.path, rescueGameState.playerPosition);
       rescueRenderer.drawPlayer(rescueGameState.playerPosition);
     }
   });
@@ -716,7 +719,14 @@ const processInteraction = (worldPos: { x: number; y: number }, _screenX: number
 
     const result = rescueModeSystem.handleTap(worldPos);
     if (!result.handled) {
-      rescueModeSystem.fireSonar(worldPos);
+      const rescueState = rescueModeSystem.getState();
+      const hasActivePath = rescueState.path.activePathId !== null &&
+        rescueState.path.followStatus === 'following';
+      if (hasActivePath) {
+        rescueModeSystem.setMoveTarget(worldPos);
+      } else {
+        rescueModeSystem.fireSonar(worldPos);
+      }
     }
   } else {
     if (!gameController) return;

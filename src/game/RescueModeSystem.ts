@@ -169,6 +169,10 @@ export class RescueModeSystem {
     return this.pathViolations.map(v => ({ ...v }));
   }
 
+  getMoveTarget(): Position | null {
+    return this.moveTarget ? { ...this.moveTarget } : null;
+  }
+
   startGame(level: number = 1) {
     this.state = this.createInitialState();
     this.state.currentLevel = Math.min(level, RESCUE_CONFIG.GAME.LEVELS.length);
@@ -567,14 +571,17 @@ export class RescueModeSystem {
 
     this.state.path.activePathId = path.id;
     this.state.path.currentTargetCapsuleId = capsuleId;
-    this.state.path.followStatus = 'idle';
+    this.state.path.followStatus = 'following';
     this.state.path.totalPathLength = this.calculatePathTotalLength(path);
     this.state.path.safeDistanceTraveled = 0;
     this.state.path.pathCompletionRate = 0;
     this.state.path.pathBonus = 0;
+    this.state.path.yawWarnings = 0;
     this.state.path.currentSafetyLevel = path.safetyLevel;
+    this.lastProgressBonusAt = 0;
 
     this.onEvent?.({ type: 'path_assigned', pathId: path.id, capsuleId });
+    this.onEvent?.({ type: 'path_start', pathId: path.id, capsuleId });
     this.notifyStateChange();
 
     return { ...path };
@@ -627,46 +634,17 @@ export class RescueModeSystem {
   }
 
   private movePlayer(deltaTime: number): void {
-    if (!this.moveTarget && this.state.path.followStatus !== 'following') return;
+    if (!this.moveTarget) return;
 
     const activePath = this.safePaths.find(p => p.id === this.state.path.activePathId);
-    let targetPos: Position | null = null;
-
-    if (this.state.path.followStatus === 'following' && activePath) {
-      const capsule = this.capsules.find(c => c.id === activePath.targetCapsuleId);
-      if (capsule && capsule.status === 'confirmed') {
-        if (activePath.currentSegment < activePath.points.length - 1) {
-          const nextPoint = activePath.points[activePath.currentSegment + 1];
-          const distToNext = Math.hypot(
-            this.state.playerPosition.x - nextPoint.x,
-            this.state.playerPosition.y - nextPoint.y
-          );
-
-          if (distToNext < RESCUE_CONFIG.PATH.PATH_NODE_RADIUS) {
-            activePath.currentSegment++;
-            if (activePath.currentSegment >= activePath.points.length - 1) {
-              activePath.currentSegment = activePath.points.length - 1;
-            }
-          }
-          targetPos = nextPoint;
-        } else {
-          targetPos = capsule.position;
-        }
-      }
-    } else if (this.moveTarget) {
-      targetPos = this.moveTarget;
-    }
-
-    if (!targetPos) return;
+    const targetPos = this.moveTarget;
 
     const dx = targetPos.x - this.state.playerPosition.x;
     const dy = targetPos.y - this.state.playerPosition.y;
     const dist = Math.hypot(dx, dy);
 
     if (dist < 5) {
-      if (this.moveTarget) {
-        this.moveTarget = null;
-      }
+      this.moveTarget = null;
       return;
     }
 
@@ -685,7 +663,7 @@ export class RescueModeSystem {
 
     this.state.playerPosition = newPos;
 
-    if (this.state.path.followStatus === 'following' && activePath) {
+    if (activePath && this.state.path.followStatus !== 'idle' && this.state.path.followStatus !== 'reached') {
       this.state.path.safeDistanceTraveled += moveDist;
       activePath.progress = this.calculatePathProgress(activePath, newPos);
       this.state.path.pathCompletionRate = activePath.progress;
@@ -705,15 +683,15 @@ export class RescueModeSystem {
         });
       }
 
-      const distToTarget = Math.hypot(
-        this.state.playerPosition.x - targetPos.x,
-        this.state.playerPosition.y - targetPos.y
-      );
-
-      if (activePath.currentSegment >= activePath.points.length - 1) {
-        const targetCapsule = this.capsules.find(c => c.id === activePath.targetCapsuleId);
-        if (targetCapsule && distToTarget < targetCapsule.radius + 25) {
+      const targetCapsule = this.capsules.find(c => c.id === activePath.targetCapsuleId);
+      if (targetCapsule && targetCapsule.status === 'confirmed') {
+        const distToCapsule = Math.hypot(
+          this.state.playerPosition.x - targetCapsule.position.x,
+          this.state.playerPosition.y - targetCapsule.position.y
+        );
+        if (distToCapsule < targetCapsule.radius + 30) {
           this.completePath(activePath);
+          this.moveTarget = null;
         }
       }
     }
@@ -745,7 +723,7 @@ export class RescueModeSystem {
 
   private checkPathViolations(): void {
     const activePath = this.safePaths.find(p => p.id === this.state.path.activePathId);
-    if (!activePath || this.state.path.followStatus !== 'following') {
+    if (!activePath || this.state.path.followStatus === 'idle' || this.state.path.followStatus === 'reached') {
       this.state.path.distanceFromPath = 0;
       this.state.path.isInHighRiskZone = false;
       this.state.path.isInBlockerZone = false;

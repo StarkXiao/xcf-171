@@ -153,7 +153,7 @@
 
     <div class="hint" v-if="showHint">
       <span v-if="!isFollowingPath">🔊 点击释放声呐 · 📡 点击可疑回波确认</span>
-      <span v-else>🚀 自动导航中 · 🎯 到达后点击舱体回收</span>
+      <span v-else>🎯 点击地图移动潜航器 · 🛤️ 沿安全航线避免处罚</span>
     </div>
   </div>
 </template>

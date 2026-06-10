@@ -701,6 +701,61 @@ export class RescueRenderer {
     }
   }
 
+  public renderMoveTarget(target: Position | null, playerPos: Position) {
+    let marker = this.mapContainer.getChildByName('move-target') as PIXI.Container;
+    if (!marker) {
+      marker = new PIXI.Container();
+      marker.name = 'move-target';
+      this.mapContainer.addChild(marker);
+    }
+    marker.removeChildren();
+
+    if (!target) return;
+
+    const time = Date.now() / 1000;
+    const dist = Math.hypot(target.x - playerPos.x, target.y - playerPos.y);
+    if (dist < 10) return;
+
+    const line = new PIXI.Graphics();
+    const dashLen = 8;
+    const gapLen = 6;
+    const totalLen = dashLen + gapLen;
+    const steps = Math.floor(dist / totalLen);
+    const ux = (target.x - playerPos.x) / dist;
+    const uy = (target.y - playerPos.y) / dist;
+    const dashOffset = (time * 30) % totalLen;
+
+    for (let s = 0; s <= steps; s++) {
+      const startD = s * totalLen + dashOffset;
+      const endD = Math.min(startD + dashLen, dist);
+      if (startD < dist - 20) {
+        line.lineStyle(2, 0x88ccff, 0.6);
+        line.moveTo(playerPos.x + ux * startD, playerPos.y + uy * startD);
+        line.lineTo(playerPos.x + ux * endD, playerPos.y + uy * endD);
+      }
+    }
+    marker.addChild(line);
+
+    const outerRing = new PIXI.Graphics();
+    const pulse = 0.5 + Math.sin(time * 4) * 0.3;
+    outerRing.lineStyle(2, 0x88ccff, pulse);
+    outerRing.drawCircle(target.x, target.y, 18 + Math.sin(time * 4) * 4);
+    marker.addChild(outerRing);
+
+    const innerRing = new PIXI.Graphics();
+    innerRing.lineStyle(1.5, 0xaaddff, 0.9);
+    innerRing.drawCircle(target.x, target.y, 10);
+    marker.addChild(innerRing);
+
+    const cross = new PIXI.Graphics();
+    cross.lineStyle(2, 0xffffff, 0.9);
+    cross.moveTo(target.x - 6, target.y);
+    cross.lineTo(target.x + 6, target.y);
+    cross.moveTo(target.x, target.y - 6);
+    cross.lineTo(target.x, target.y + 6);
+    marker.addChild(cross);
+  }
+
   public drawPlayer(position: Position) {
     let player = this.mapContainer.getChildByName('rescue-player') as PIXI.Container;
     if (!player) {
@@ -807,5 +862,7 @@ export class RescueRenderer {
     if (player) this.mapContainer.removeChild(player);
     const indicator = this.mapContainer.getChildByName('path-state-indicator');
     if (indicator) this.mapContainer.removeChild(indicator);
+    const moveTarget = this.mapContainer.getChildByName('move-target');
+    if (moveTarget) this.mapContainer.removeChild(moveTarget);
   }
 }
