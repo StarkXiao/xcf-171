@@ -9,6 +9,7 @@
       :state="gameState"
       :show-hint="showHint"
       :active-events="activeOceanEvents"
+      :missions="activeMissions"
     />
 
     <RelayGameHUD
@@ -53,6 +54,7 @@
       :discovered="gameState.discoveredTargets"
       :high-score="highScore"
       :session-unlocks="sessionUnlocks"
+      :mission-result="missionResult"
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
@@ -99,7 +101,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -146,6 +148,8 @@ const voiceprintHighScore = ref(0);
 const lastVoiceprintVerdict = ref<VoiceprintVerdict | null>(null);
 
 const activeOceanEvents = ref<OceanEvent[]>([]);
+const activeMissions = ref<Mission[]>([]);
+const missionResult = ref<MissionResult | null>(null);
 
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
@@ -271,6 +275,10 @@ const handleGameOver = (finalScore: number) => {
   sessionUnlocks.value = gameController?.getSessionUnlocks() ?? [];
   refreshCollection();
 
+  if (gameController) {
+    missionResult.value = gameController.getMissionSystem().getResult();
+  }
+
   if (finalScore > highScore.value) {
     highScore.value = finalScore;
     try {
@@ -291,6 +299,24 @@ const handleOceanEventExpired = (event: OceanEvent) => {
 
 const handleTreasureCollected = (event: OceanEvent, points: number) => {
   refreshOceanEvents();
+};
+
+const handleMissionCompleted = (mission: Mission) => {
+  refreshMissions();
+};
+
+const handleMissionProgress = (_mission: Mission) => {
+  refreshMissions();
+};
+
+const handleMissionEffectsChanged = (_effects: MissionEffect[]) => {
+  refreshMissions();
+};
+
+const refreshMissions = () => {
+  if (gameController) {
+    activeMissions.value = gameController.getMissionSystem().getMissions();
+  }
 };
 
 const refreshOceanEvents = () => {
@@ -512,6 +538,8 @@ const handleHome = () => {
   showVoiceprintLab.value = false;
   lastRelayResult.value = null;
   lastVoiceprintVerdict.value = null;
+  activeMissions.value = [];
+  missionResult.value = null;
   refreshCollection();
 
   if (relaySystem) {
@@ -627,7 +655,10 @@ onMounted(() => {
       handleUnlockEvent,
       handleOceanEventSpawned,
       handleOceanEventExpired,
-      handleTreasureCollected
+      handleTreasureCollected,
+      handleMissionCompleted,
+      handleMissionProgress,
+      handleMissionEffectsChanged
     );
   }
 
@@ -642,6 +673,13 @@ onMounted(() => {
     }
   }, 500);
   (window as any).__oceanEventTimer = oceanEventTimer;
+
+  const missionTimer = window.setInterval(() => {
+    if (gameState.isPlaying && !gameState.isPaused) {
+      refreshMissions();
+    }
+  }, 500);
+  (window as any).__missionTimer = missionTimer;
 });
 
 onUnmounted(() => {
@@ -655,6 +693,10 @@ onUnmounted(() => {
   const oceanEventTimer = (window as any).__oceanEventTimer;
   if (oceanEventTimer) {
     clearInterval(oceanEventTimer);
+  }
+  const missionTimer = (window as any).__missionTimer;
+  if (missionTimer) {
+    clearInterval(missionTimer);
   }
 });
 </script>

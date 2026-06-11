@@ -1,4 +1,4 @@
-import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { OCEAN_EVENT_CONFIG } from '../config/oceanEvents';
 import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
@@ -9,6 +9,7 @@ import { ScoreSystem, type ScoreEvent } from './ScoreSystem';
 import { CollectionSystem } from './CollectionSystem';
 import { SalvageEventSystem } from './SalvageEventSystem';
 import { OceanEventSystem } from './OceanEventSystem';
+import { MissionSystem } from './MissionSystem';
 import * as PIXI from 'pixi.js';
 
 export class GameController {
@@ -19,6 +20,7 @@ export class GameController {
   private collection: CollectionSystem;
   private salvageEvent: SalvageEventSystem | null;
   private oceanEventSystem: OceanEventSystem;
+  private missionSystem: MissionSystem;
 
   private targets: Target[] = [];
   private playerPosition: Position;
@@ -38,6 +40,9 @@ export class GameController {
   private onOceanEventSpawned?: (event: OceanEvent) => void;
   private onOceanEventExpired?: (event: OceanEvent) => void;
   private onTreasureCollected?: (event: OceanEvent, points: number) => void;
+  private onMissionCompleted?: (mission: Mission) => void;
+  private onMissionProgress?: (mission: Mission) => void;
+  private onMissionEffectsChanged?: (effects: MissionEffect[]) => void;
 
   constructor(container: HTMLElement, collectionSystem?: CollectionSystem, salvageSystem?: SalvageEventSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
@@ -58,6 +63,7 @@ export class GameController {
       mapWidth: GAME_CONFIG.MAP_WIDTH,
       mapHeight: GAME_CONFIG.MAP_HEIGHT,
     });
+    this.missionSystem = new MissionSystem();
 
     this.playerPosition = {
       x: GAME_CONFIG.MAP_WIDTH / 2,
@@ -246,7 +252,10 @@ export class GameController {
     onUnlock?: (event: UnlockEvent) => void,
     onOceanEventSpawned?: (event: OceanEvent) => void,
     onOceanEventExpired?: (event: OceanEvent) => void,
-    onTreasureCollected?: (event: OceanEvent, points: number) => void
+    onTreasureCollected?: (event: OceanEvent, points: number) => void,
+    onMissionCompleted?: (mission: Mission) => void,
+    onMissionProgress?: (mission: Mission) => void,
+    onMissionEffectsChanged?: (effects: MissionEffect[]) => void
   ) {
     this.onStateChange = onStateChange;
     this.onScoreEvent = onScoreEvent;
@@ -256,10 +265,22 @@ export class GameController {
     this.onOceanEventSpawned = onOceanEventSpawned;
     this.onOceanEventExpired = onOceanEventExpired;
     this.onTreasureCollected = onTreasureCollected;
+    this.onMissionCompleted = onMissionCompleted;
+    this.onMissionProgress = onMissionProgress;
+    this.onMissionEffectsChanged = onMissionEffectsChanged;
 
     this.scoreSystem.setStateCallbacks(
       (state) => this.onStateChange?.(state),
       (event) => this.onScoreEvent?.(event)
+    );
+
+    this.missionSystem.setCallbacks(
+      (mission) => {
+        this.onMissionCompleted?.(mission);
+        this.applyMissionEffects(mission);
+      },
+      (mission) => this.onMissionProgress?.(mission),
+      (effects) => this.onMissionEffectsChanged?.(effects)
     );
   }
 
@@ -282,6 +303,12 @@ export class GameController {
       x: GAME_CONFIG.MAP_WIDTH / 2,
       y: 80,
     };
+
+    this.missionSystem.reset();
+    this.missionSystem.generateMissions(state.level);
+    this.missionSystem.setLevelTargetCounts(state.level, this.countCollectibleTargets());
+
+    this.applyMissionStartEffects();
 
     if (!this.isInitialized) {
       this.isInitialized = true;
@@ -366,6 +393,7 @@ export class GameController {
     const { discoveredTargetIds } = this.sonar.update(delta, this.targets);
     for (const _id of discoveredTargetIds) {
       this.scoreSystem.discoverTarget();
+      this.missionSystem.onDiscoverTarget();
     }
 
     this.renderer.updateCamera(this.playerPosition.y);
@@ -389,6 +417,8 @@ export class GameController {
     if (interferenceEvent) {
       modifier *= 0.7;
     }
+    const missionRechargeBonus = this.missionSystem.getSonarRechargeSpeedBonus();
+    modifier *= (1 + missionRechargeBonus);
     return modifier;
   }
 
@@ -402,6 +432,8 @@ export class GameController {
 
   fireSonar(position: Position): boolean {
     if (!this.scoreSystem.useSonar()) return false;
+
+    this.missionSystem.onFireSonar();
 
     const worldPos = { ...position };
     const radiusModifier = this.oceanEventSystem.getSonarRadiusModifier(worldPos);
@@ -459,24 +491,30 @@ export class GameController {
 
         const alive = this.scoreSystem.collectTarget(target);
 
+        const state = this.scoreSystem.getState();
+        this.missionSystem.onCollectTarget(target, state.level);
+
         const eventWreck = this.eventWreckMap.get(target.id);
         if (eventWreck && this.salvageEvent) {
           this.salvageEvent.recordWreckCollected(eventWreck, adjustedPoints);
         }
 
-        const state = this.scoreSystem.getState();
         const unlockEvent = this.collection.recordTarget(target, state.level, adjustedPoints);
         if (unlockEvent) {
           this.onUnlock?.(unlockEvent);
         }
 
         if (this.scoreSystem.checkLevelUp(this.collectedCreaturesAndWrecks)) {
-          const state = this.scoreSystem.getState();
-          const newTargets = this.targetGenerator.generateTargets(state.level);
+          const levelUpState = this.scoreSystem.getState();
+          this.missionSystem.onLevelUp(levelUpState.level);
+          this.applyMissionStartEffects();
+
+          const newTargets = this.targetGenerator.generateTargets(levelUpState.level);
           this.targets.push(...newTargets);
-          this.injectEventWrecks(state.level);
-          this.oceanEventSystem.setLevel(state.level);
-          this.onLevelUp?.(state.level);
+          this.injectEventWrecks(levelUpState.level);
+          this.missionSystem.setLevelTargetCounts(levelUpState.level, this.countCollectibleTargets());
+          this.oceanEventSystem.setLevel(levelUpState.level);
+          this.onLevelUp?.(levelUpState.level);
         }
 
         if (!alive) {
@@ -521,12 +559,56 @@ export class GameController {
     return this.oceanEventSystem;
   }
 
+  getMissionSystem(): MissionSystem {
+    return this.missionSystem;
+  }
+
   getSessionUnlocks() {
     return this.collection.getSessionUnlocks();
   }
 
   screenToWorld(screenX: number, screenY: number): Position {
     return this.renderer.screenToWorld(screenX, screenY);
+  }
+
+  private countCollectibleTargets(): number {
+    return this.targets.filter((t) => !t.collected && t.type !== 'danger').length;
+  }
+
+  private applyMissionStartEffects(): void {
+    const extraLives = this.missionSystem.getExtraLives();
+    if (extraLives > 0) {
+      this.scoreSystem.addLife(extraLives);
+    }
+
+    const sonarBonus = this.missionSystem.getSonarChargeBonus();
+    if (sonarBonus > 0) {
+      this.scoreSystem.addSonarCharges(sonarBonus);
+    }
+
+    const dangerModifier = this.missionSystem.getDangerCountModifier();
+    this.targetGenerator.setMultipliers({
+      creatureCountMul: this.currentEffects.creatureCountMul,
+      wreckCountMul: this.currentEffects.wreckCountMul * (this.salvageEvent?.getState().isActive ? (this.salvageEvent?.getConfig().wreckCountMultiplier ?? 1) : 1),
+      dangerCountMul: Math.max(0.2, this.currentEffects.dangerCountMul + dangerModifier * 0.2),
+      creaturePointsBonus: this.currentEffects.creaturePointsBonus,
+      wreckPointsBonus: this.currentEffects.wreckPointsBonus,
+      scoreMul: this.currentEffects.scoreMul,
+    });
+  }
+
+  private applyMissionEffects(mission: Mission): void {
+    this.scoreSystem.addBonus(mission.completionBonus, `任务完成: ${mission.title}`);
+
+    const extraLives = this.missionSystem.getExtraLives();
+    if (extraLives > 0) {
+      this.scoreSystem.addLife(extraLives);
+    }
+
+    const sonarBonus = this.missionSystem.getSonarChargeBonus();
+    if (sonarBonus > 0) {
+      this.scoreSystem.addSonarCharges(sonarBonus);
+    }
   }
 
   destroy() {

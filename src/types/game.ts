@@ -962,6 +962,72 @@ export interface OceanEventEffect {
   duration: number;
 }
 
+export type MissionCategory = 'main' | 'side';
+
+export type MissionObjectiveType =
+  | 'collect_creatures'
+  | 'collect_wrecks'
+  | 'reach_level'
+  | 'no_damage_levels'
+  | 'discover_targets'
+  | 'sonar_efficiency'
+  | 'avoid_all_dangers'
+  | 'collect_all_in_level'
+  | 'use_sonar_under';
+
+export interface MissionObjective {
+  type: MissionObjectiveType;
+  targetValue: number;
+  currentValue: number;
+}
+
+export type MissionEffectType =
+  | 'sonar_charge_bonus'
+  | 'sonar_recharge_speed'
+  | 'danger_count_modifier'
+  | 'score_bonus'
+  | 'extra_life';
+
+export interface MissionEffect {
+  type: MissionEffectType;
+  value: number;
+}
+
+export interface Mission {
+  id: string;
+  category: MissionCategory;
+  title: string;
+  description: string;
+  icon: string;
+  objective: MissionObjective;
+  rewardEffects: MissionEffect[];
+  completionBonus: number;
+  completed: boolean;
+  failed: boolean;
+}
+
+export interface MissionState {
+  missions: Mission[];
+  mainCompletedCount: number;
+  sideCompletedCount: number;
+  totalMainMissions: number;
+  totalSideMissions: number;
+  completionRatio: number;
+  ratingBonus: number;
+}
+
+export interface MissionResult {
+  missions: Mission[];
+  mainCompletedCount: number;
+  sideCompletedCount: number;
+  totalMainMissions: number;
+  totalSideMissions: number;
+  completionRatio: number;
+  ratingBonus: number;
+  ratingAdjustment: number;
+  effectSummary: string[];
+}
+
 export type VoiceprintLabEvent =
   | { type: 'sample_collected'; sample: VoiceprintSample }
   | { type: 'verdict_made'; verdict: VoiceprintVerdict }

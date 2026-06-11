@@ -51,6 +51,34 @@
         </div>
       </div>
 
+      <div v-if="missionResult" class="mission-result-section">
+        <div class="mission-result-title">
+          <span class="mission-result-icon">📋</span>
+          <span>任务委托结算</span>
+        </div>
+        <div class="mission-result-summary">
+          <div class="mission-summary-item main">
+            <span class="mission-summary-label">主线</span>
+            <span class="mission-summary-value">{{ missionResult.mainCompletedCount }}/{{ missionResult.totalMainMissions }}</span>
+          </div>
+          <div class="mission-summary-item side">
+            <span class="mission-summary-label">支线</span>
+            <span class="mission-summary-value">{{ missionResult.sideCompletedCount }}/{{ missionResult.totalSideMissions }}</span>
+          </div>
+        </div>
+        <div class="mission-result-list">
+          <div
+            v-for="summary in missionResult.effectSummary"
+            :key="summary"
+            class="mission-result-item"
+          >{{ summary }}</div>
+        </div>
+        <div class="mission-rating-bonus" v-if="missionResult.ratingBonus > 0">
+          <span class="mission-rating-label">任务评级加成</span>
+          <span class="mission-rating-value">+{{ missionResult.ratingBonus }}</span>
+        </div>
+      </div>
+
       <div class="rank-display">
         <span class="rank-label">评价等级</span>
         <span class="rank-badge" :class="rankClass">{{ rank }}</span>
@@ -135,7 +163,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { UnlockEvent, ExpeditionReward } from '../types/game';
+import type { UnlockEvent, ExpeditionReward, MissionResult } from '../types/game';
 
 const props = defineProps<{
   score: number;
@@ -151,6 +179,7 @@ const props = defineProps<{
   isDailyNewRecord?: boolean;
   expeditionReward?: ExpeditionReward | null;
   totalExpeditionPoints?: number;
+  missionResult?: MissionResult | null;
 }>();
 
 defineEmits<{
@@ -162,11 +191,16 @@ defineEmits<{
 
 const isNewHighScore = computed(() => props.score >= props.highScore && props.score > 0);
 
+const effectiveScore = computed(() => {
+  return props.score + (props.missionResult?.ratingBonus ?? 0);
+});
+
 const rank = computed(() => {
-  if (props.score >= 3000) return 'S';
-  if (props.score >= 2000) return 'A';
-  if (props.score >= 1000) return 'B';
-  if (props.score >= 500) return 'C';
+  const s = effectiveScore.value;
+  if (s >= 3000) return 'S';
+  if (s >= 2000) return 'A';
+  if (s >= 1000) return 'B';
+  if (s >= 500) return 'C';
   return 'D';
 });
 
@@ -728,5 +762,110 @@ const formatNumber = (n: number | undefined | null) => (n ?? 0).toLocaleString()
   background: linear-gradient(135deg, rgba(255, 204, 0, 0.2), rgba(255, 136, 0, 0.2));
   border-color: rgba(255, 204, 0, 0.6);
   transform: translateY(-1px);
+}
+
+.mission-result-section {
+  margin-bottom: 18px;
+  background: linear-gradient(135deg, rgba(0, 80, 100, 0.15), rgba(0, 40, 60, 0.2));
+  border: 1px solid rgba(0, 200, 170, 0.35);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.mission-result-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.9);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.mission-result-icon {
+  font-size: 18px;
+}
+
+.mission-result-summary {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.mission-summary-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 6px;
+  border-radius: 8px;
+  background: rgba(0, 40, 50, 0.5);
+}
+
+.mission-summary-item.main {
+  border: 1px solid rgba(255, 200, 100, 0.3);
+}
+
+.mission-summary-item.side {
+  border: 1px solid rgba(100, 180, 255, 0.3);
+}
+
+.mission-summary-label {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: rgba(200, 200, 220, 0.6);
+  margin-bottom: 3px;
+}
+
+.mission-summary-value {
+  font-size: 18px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
+.mission-summary-item.main .mission-summary-value {
+  color: rgba(255, 200, 100, 0.95);
+}
+
+.mission-summary-item.side .mission-summary-value {
+  color: rgba(100, 180, 255, 0.95);
+}
+
+.mission-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.mission-result-item {
+  font-size: 11px;
+  color: rgba(200, 200, 220, 0.7);
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgba(0, 30, 40, 0.3);
+}
+
+.mission-rating-bonus {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 200, 170, 0.2);
+}
+
+.mission-rating-label {
+  font-size: 12px;
+  color: rgba(0, 255, 200, 0.7);
+}
+
+.mission-rating-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #00ffcc;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 10px rgba(0, 255, 200, 0.4);
 }
 </style>

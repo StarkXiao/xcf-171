@@ -27,6 +27,67 @@
       </div>
     </div>
 
+    <div class="mission-panel" v-if="missions && missions.length > 0">
+      <div class="mission-panel-header" @click="missionExpanded = !missionExpanded">
+        <span class="mission-panel-icon">📋</span>
+        <span class="mission-panel-title">任务委托</span>
+        <span class="mission-panel-count">{{ completedMissionCount }}/{{ missions.length }}</span>
+        <span class="mission-panel-toggle">{{ missionExpanded ? '▾' : '▸' }}</span>
+      </div>
+      <div class="mission-panel-body" v-if="missionExpanded">
+        <div class="mission-section" v-if="mainMissions.length > 0">
+          <div class="mission-section-label">主线</div>
+          <div
+            v-for="m in mainMissions"
+            :key="m.id"
+            class="mission-item"
+            :class="{ completed: m.completed, failed: m.failed }"
+          >
+            <span class="mission-icon">{{ m.icon }}</span>
+            <div class="mission-info">
+              <span class="mission-title">{{ m.title }}</span>
+              <div class="mission-progress-row">
+                <div class="mission-progress-bar">
+                  <div
+                    class="mission-progress-fill"
+                    :style="{ width: missionProgressPercent(m) + '%' }"
+                  ></div>
+                </div>
+                <span class="mission-progress-text">{{ m.objective.currentValue }}/{{ m.objective.targetValue }}</span>
+              </div>
+            </div>
+            <span v-if="m.completed" class="mission-check">✅</span>
+            <span v-else-if="m.failed" class="mission-check">❌</span>
+          </div>
+        </div>
+        <div class="mission-section" v-if="sideMissions.length > 0">
+          <div class="mission-section-label side">支线</div>
+          <div
+            v-for="m in sideMissions"
+            :key="m.id"
+            class="mission-item"
+            :class="{ completed: m.completed, failed: m.failed }"
+          >
+            <span class="mission-icon">{{ m.icon }}</span>
+            <div class="mission-info">
+              <span class="mission-title">{{ m.title }}</span>
+              <div class="mission-progress-row">
+                <div class="mission-progress-bar">
+                  <div
+                    class="mission-progress-fill side"
+                    :style="{ width: missionProgressPercent(m) + '%' }"
+                  ></div>
+                </div>
+                <span class="mission-progress-text">{{ m.objective.currentValue }}/{{ m.objective.targetValue }}</span>
+              </div>
+            </div>
+            <span v-if="m.completed" class="mission-check">✅</span>
+            <span v-else-if="m.failed" class="mission-check">❌</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="event-notifications" v-if="activeNotifications.length > 0">
       <div
         v-for="notification in activeNotifications"
@@ -38,6 +99,21 @@
         <div class="event-info">
           <div class="event-title">{{ notification.title }}</div>
           <div class="event-desc">{{ notification.description }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mission-completion-notification" v-if="missionNotifications.length > 0">
+      <div
+        v-for="mn in missionNotifications"
+        :key="mn.id"
+        class="mission-notif-item"
+        :class="{ completed: mn.completed }"
+      >
+        <span class="mission-notif-icon">{{ mn.icon }}</span>
+        <div class="mission-notif-info">
+          <div class="mission-notif-title">{{ mn.completed ? '任务完成！' : '任务失败' }}</div>
+          <div class="mission-notif-desc">{{ mn.title }} {{ mn.completed ? `+${mn.bonus}` : '' }}</div>
         </div>
       </div>
     </div>
@@ -101,7 +177,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { GameState, OceanEvent } from '../types/game';
+import type { GameState, OceanEvent, Mission } from '../types/game';
 import { getEventColor } from '../config/oceanEvents';
 
 const props = defineProps<{
@@ -110,6 +186,7 @@ const props = defineProps<{
   isDailyChallenge?: boolean;
   dailyChallengeTitle?: string;
   activeEvents?: OceanEvent[];
+  missions?: Mission[];
 }>();
 
 interface EventNotification {
@@ -121,8 +198,19 @@ interface EventNotification {
   timestamp: number;
 }
 
+interface MissionNotification {
+  id: number;
+  title: string;
+  icon: string;
+  completed: boolean;
+  bonus: number;
+}
+
 const activeNotifications = ref<EventNotification[]>([]);
+const missionNotifications = ref<MissionNotification[]>([]);
+const missionExpanded = ref(true);
 let notificationId = 0;
+let missionNotifId = 0;
 
 const addNotification = (event: OceanEvent, isSpawn: boolean) => {
   const notification: EventNotification = {
@@ -138,6 +226,21 @@ const addNotification = (event: OceanEvent, isSpawn: boolean) => {
   setTimeout(() => {
     activeNotifications.value = activeNotifications.value.filter(n => n.id !== notification.id);
   }, 3000);
+};
+
+const addMissionNotification = (mission: Mission) => {
+  const mn: MissionNotification = {
+    id: missionNotifId++,
+    title: mission.title,
+    icon: mission.icon,
+    completed: mission.completed,
+    bonus: mission.completionBonus,
+  };
+  missionNotifications.value.push(mn);
+
+  setTimeout(() => {
+    missionNotifications.value = missionNotifications.value.filter(n => n.id !== mn.id);
+  }, 4000);
 };
 
 const previousEventIds = ref<Set<number>>(new Set());
@@ -158,6 +261,30 @@ watch(
   { deep: true, immediate: true }
 );
 
+const previousCompletedIds = ref<Set<string>>(new Set());
+
+watch(
+  () => props.missions || [],
+  (newMissions) => {
+    for (const m of newMissions) {
+      if ((m.completed || m.failed) && !previousCompletedIds.value.has(m.id)) {
+        addMissionNotification(m);
+      }
+    }
+    previousCompletedIds.value = new Set(newMissions.filter(m => m.completed || m.failed).map(m => m.id));
+  },
+  { deep: true, immediate: true }
+);
+
+const mainMissions = computed(() => (props.missions || []).filter(m => m.category === 'main'));
+const sideMissions = computed(() => (props.missions || []).filter(m => m.category === 'side'));
+const completedMissionCount = computed(() => (props.missions || []).filter(m => m.completed).length);
+
+const missionProgressPercent = (m: Mission) => {
+  if (m.objective.targetValue === 0) return 0;
+  return Math.min(100, Math.round((m.objective.currentValue / m.objective.targetValue) * 100));
+};
+
 const progressPercent = computed(() => {
   if (props.state.totalTargets === 0) return 0;
   return (props.state.discoveredTargets / props.state.totalTargets) * 100;
@@ -173,6 +300,7 @@ const formatNumber = (n: number) => {
 
 defineExpose({
   addNotification,
+  addMissionNotification,
 });
 </script>
 
@@ -546,5 +674,226 @@ defineExpose({
   background: #ffdd00;
   border-radius: 2px;
   transition: width 0.3s ease;
+}
+
+.mission-panel {
+  position: absolute;
+  top: 80px;
+  left: 12px;
+  width: 200px;
+  background: linear-gradient(135deg, rgba(0, 40, 60, 0.88), rgba(0, 20, 40, 0.92));
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.mission-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(0, 255, 170, 0.15);
+}
+
+.mission-panel-icon {
+  font-size: 14px;
+}
+
+.mission-panel-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.85);
+  letter-spacing: 1px;
+}
+
+.mission-panel-count {
+  font-size: 10px;
+  color: rgba(0, 255, 200, 0.6);
+  font-family: 'Courier New', monospace;
+}
+
+.mission-panel-toggle {
+  font-size: 10px;
+  color: rgba(0, 255, 200, 0.5);
+}
+
+.mission-panel-body {
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mission-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mission-section-label {
+  font-size: 9px;
+  font-weight: bold;
+  color: rgba(255, 200, 100, 0.8);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 200, 100, 0.15);
+}
+
+.mission-section-label.side {
+  color: rgba(150, 200, 255, 0.8);
+  border-bottom-color: rgba(150, 200, 255, 0.15);
+}
+
+.mission-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(0, 50, 70, 0.3);
+  transition: all 0.2s ease;
+}
+
+.mission-item.completed {
+  background: rgba(0, 150, 80, 0.2);
+  opacity: 0.75;
+}
+
+.mission-item.failed {
+  background: rgba(150, 30, 30, 0.2);
+  opacity: 0.6;
+}
+
+.mission-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.mission-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mission-title {
+  font-size: 10px;
+  color: #fff;
+  font-weight: 500;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mission-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.mission-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mission-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffcc00, #ff8800);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.mission-progress-fill.side {
+  background: linear-gradient(90deg, #66aaff, #4488ff);
+}
+
+.mission-progress-text {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+}
+
+.mission-check {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.mission-completion-notification {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.mission-notif-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  animation: mission-notif-pop 0.5s ease-out;
+  min-width: 200px;
+  text-align: center;
+}
+
+.mission-notif-item.completed {
+  background: linear-gradient(135deg, rgba(0, 180, 80, 0.92), rgba(0, 120, 60, 0.95));
+  border: 1px solid rgba(0, 255, 130, 0.7);
+  box-shadow: 0 0 30px rgba(0, 255, 130, 0.4);
+}
+
+.mission-notif-item:not(.completed) {
+  background: linear-gradient(135deg, rgba(150, 40, 40, 0.9), rgba(100, 20, 20, 0.95));
+  border: 1px solid rgba(255, 80, 80, 0.6);
+  box-shadow: 0 0 20px rgba(255, 80, 80, 0.3);
+}
+
+.mission-notif-icon {
+  font-size: 22px;
+}
+
+.mission-notif-info {
+  text-align: left;
+}
+
+.mission-notif-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.mission-notif-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 2px;
+}
+
+@keyframes mission-notif-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>
