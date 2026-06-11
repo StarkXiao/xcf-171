@@ -370,7 +370,7 @@ export class VoyageArchiveSystem {
     if (rescueResult) {
       record.rank = rescueResult.rank;
       record.rescueDetails = {
-        capsulesFound: rescueResult.capsulesRescued,
+        capsulesFound: rescueResult.capsulesFound,
         capsulesRescued: rescueResult.capsulesRescued,
         totalRealCapsules: rescueResult.totalRealCapsules,
         falseReports: rescueResult.falseReports,

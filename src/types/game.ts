@@ -598,3 +598,123 @@ export interface VoyageArchiveStats {
   topAnomalies: { type: AnomalyEventType; count: number; description: string }[];
 }
 
+export type RelayRoleType = 'sonar_operator' | 'navigator' | 'collector';
+
+export interface RelayRole {
+  id: RelayRoleType;
+  name: string;
+  icon: string;
+  description: string;
+  ability: string;
+  color: string;
+  stats: {
+    sonarRadiusMul?: number;
+    sonarSpeedMul?: number;
+    scoreMul?: number;
+    moveSpeedMul?: number;
+    livesBonus?: number;
+    sonarChargesBonus?: number;
+  };
+}
+
+export type RelayPhaseType = 'detection' | 'navigation' | 'collection';
+
+export interface RelayPhase {
+  id: RelayPhaseType;
+  name: string;
+  icon: string;
+  description: string;
+  role: RelayRoleType;
+  duration?: number;
+  targetGoal: string;
+}
+
+export interface RelayPlayer {
+  id: number;
+  name: string;
+  role: RelayRoleType;
+  avatar: string;
+  stats: {
+    score: number;
+    discoveries: number;
+    sonarUsed: number;
+    damageTaken: number;
+    timePlayed: number;
+  };
+}
+
+export interface RelaySharedState {
+  score: number;
+  lives: number;
+  maxLives: number;
+  sonarCharges: number;
+  maxSonarCharges: number;
+  level: number;
+  discoveredTargets: number;
+  totalTargets: number;
+  combo: number;
+  maxCombo: number;
+}
+
+export interface RelayGameState {
+  isPlaying: boolean;
+  isPaused: boolean;
+  isGameOver: boolean;
+  isVictory: boolean;
+  currentPhaseIndex: number;
+  phases: RelayPhaseType[];
+  currentPlayerIndex: number;
+  players: RelayPlayer[];
+  shared: RelaySharedState;
+  phaseStartTime: number;
+  totalPlayTime: number;
+  currentPhaseTimeRemaining: number;
+}
+
+export interface RelayPhaseResult {
+  phase: RelayPhaseType;
+  playerId: number;
+  scoreGained: number;
+  discoveries: number;
+  sonarUsed: number;
+  damageTaken: number;
+  duration: number;
+  completed: boolean;
+  events: string[];
+}
+
+export interface RelayResult {
+  victory: boolean;
+  finalScore: number;
+  totalDiscoveries: number;
+  totalLevels: number;
+  livesRemaining: number;
+  totalPlayTime: number;
+  maxCombo: number;
+  playerResults: {
+    playerId: number;
+    role: RelayRoleType;
+    totalScore: number;
+    discoveries: number;
+    sonarUsed: number;
+    damageTaken: number;
+    timePlayed: number;
+    contribution: number;
+  }[];
+  phaseResults: RelayPhaseResult[];
+  rank: 'S' | 'A' | 'B' | 'C' | 'D';
+  isNewRecord: boolean;
+}
+
+export type RelayEvent =
+  | { type: 'phase_start'; phase: RelayPhaseType; playerId: number }
+  | { type: 'phase_end'; result: RelayPhaseResult }
+  | { type: 'player_switch'; fromPlayerId: number; toPlayerId: number }
+  | { type: 'shared_lost'; penalty: number }
+  | { type: 'shared_gained'; bonus: number; resourceType: 'life' | 'sonar' | 'score' }
+  | { type: 'game_over'; result: RelayResult }
+  | { type: 'combo_break' }
+  | { type: 'combo_increase'; combo: number }
+  | { type: 'target_discovered'; targetType: string }
+  | { type: 'danger_hit'; targetType: string };
+
