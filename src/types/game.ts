@@ -16,6 +16,7 @@ export interface Target {
   collected: boolean;
   shape: 'circle' | 'triangle' | 'square' | 'irregular';
   rotation: number;
+  enhancedByEvent?: OceanEventType;
 }
 
 export interface CollectionEntry {

@@ -132,6 +132,11 @@ export class ScoreSystem {
     this.notifyStateChange();
   }
 
+  updateTotalTargets(total: number) {
+    this.state.totalTargets = total;
+    this.notifyStateChange();
+  }
+
   useSonar(): boolean {
     if (this.state.sonarCharges <= 0) return false;
     this.state.sonarCharges--;

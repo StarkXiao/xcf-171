@@ -1,5 +1,6 @@
 import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
+import { OCEAN_EVENT_CONFIG } from '../config/oceanEvents';
 import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
 import { MapRenderer } from './MapRenderer';
 import { SonarSystem } from './SonarSystem';
@@ -69,10 +70,138 @@ export class GameController {
 
   private setupOceanEventCallbacks() {
     this.oceanEventSystem.setCallbacks(
-      (event) => this.onOceanEventSpawned?.(event),
+      (event) => {
+        this.injectEventInfluencedTargets(event);
+        this.onOceanEventSpawned?.(event);
+      },
       (event) => this.onOceanEventExpired?.(event),
       (event, points) => this.onTreasureCollected?.(event, points)
     );
+  }
+
+  private injectEventInfluencedTargets(event: OceanEvent) {
+    if (event.type === 'current') {
+      this.injectCreaturesNearEvent(event, 1 + Math.floor(Math.random() * 2));
+    } else if (event.type === 'interference') {
+      this.injectDangersNearEvent(event, 1 + Math.floor(Math.random() * 2));
+    } else if (event.type === 'treasure') {
+      this.injectWrecksNearEvent(event, 1);
+    }
+
+    this.scoreSystem.updateTotalTargets(this.targets.length);
+  }
+
+  private injectCreaturesNearEvent(event: OceanEvent, count: number) {
+    const state = this.scoreSystem.getState();
+    const pointsBase = Math.round(
+      (GAME_CONFIG.SCORE.CREATURE_POINTS + this.currentEffects.creaturePointsBonus) *
+      this.currentEffects.scoreMul *
+      1.3
+    );
+
+    for (let i = 0; i < count; i++) {
+      const target = this.createTargetNearEvent(event, 'creature', pointsBase);
+      if (target) {
+        this.targets.push(target);
+      }
+    }
+  }
+
+  private injectDangersNearEvent(event: OceanEvent, count: number) {
+    for (let i = 0; i < count; i++) {
+      const target = this.createTargetNearEvent(event, 'danger', GAME_CONFIG.SCORE.DANGER_PENALTY);
+      if (target) {
+        this.targets.push(target);
+      }
+    }
+  }
+
+  private injectWrecksNearEvent(event: OceanEvent, count: number) {
+    const state = this.scoreSystem.getState();
+    const pointsBase = Math.round(
+      (GAME_CONFIG.SCORE.WRECK_POINTS + this.currentEffects.wreckPointsBonus) *
+      this.currentEffects.scoreMul *
+      1.5
+    );
+
+    for (let i = 0; i < count; i++) {
+      const target = this.createTargetNearEvent(event, 'wreck', pointsBase);
+      if (target) {
+        this.targets.push(target);
+      }
+    }
+  }
+
+  private createTargetNearEvent(
+    event: OceanEvent,
+    type: 'creature' | 'danger' | 'wreck',
+    points: number
+  ): Target | null {
+    const margin = GAME_CONFIG.TARGETS.SPAWN_MARGIN;
+    const minR = GAME_CONFIG.TARGETS.MIN_RADIUS;
+    const maxR = GAME_CONFIG.TARGETS.MAX_RADIUS;
+
+    let attempts = 0;
+    while (attempts < 50) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * event.radius * 0.8;
+      const pos = {
+        x: event.position.x + Math.cos(angle) * dist,
+        y: event.position.y + Math.sin(angle) * dist,
+      };
+
+      pos.x = Math.max(margin, Math.min(GAME_CONFIG.MAP_WIDTH - margin, pos.x));
+      pos.y = Math.max(margin, Math.min(this.currentEffects.mapHeight - margin, pos.y));
+
+      const radius = minR + Math.random() * (maxR - minR);
+
+      let overlapping = false;
+      for (const t of this.targets) {
+        const dx = pos.x - t.position.x;
+        const dy = pos.y - t.position.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < radius + t.radius + GAME_CONFIG.TARGETS.SPAWN_MARGIN) {
+          overlapping = true;
+          break;
+        }
+      }
+
+      if (!overlapping) {
+        let name = '';
+        let shape: 'circle' | 'triangle' | 'square' | 'irregular' = 'circle';
+
+        if (type === 'creature') {
+          const names = ['发光水母', '深海鱼群', '巨型章鱼', '透明虾', '珊瑚虫'];
+          name = names[Math.floor(Math.random() * names.length)];
+          shape = 'circle';
+        } else if (type === 'wreck') {
+          const names = ['古代沉船', '货轮残骸', '潜艇残骸', '飞机残骸', '神秘箱子'];
+          name = names[Math.floor(Math.random() * names.length)];
+          shape = 'irregular';
+        } else {
+          const names = ['海底火山', '暗流漩涡', '巨型水母', '海底地雷'];
+          name = names[Math.floor(Math.random() * names.length)];
+          shape = Math.random() > 0.5 ? 'triangle' : 'square';
+        }
+
+        return {
+          id: Date.now() + Math.floor(Math.random() * 100000) + attempts,
+          type,
+          position: pos,
+          radius,
+          name: `${event.name}·${name}`,
+          points,
+          discovered: false,
+          collected: false,
+          shape,
+          rotation: Math.random() * Math.PI * 2,
+          enhancedByEvent: event.type,
+        };
+      }
+      attempts++;
+    }
+
+    return null;
   }
 
   setLoadout(loadout: ExpeditionLoadout) {
@@ -301,7 +430,7 @@ export class GameController {
   handleTap(worldPos: Position): { hit: boolean; target?: Target } {
     const treasureEvent = this.oceanEventSystem.tryCollectTreasure(worldPos);
     if (treasureEvent) {
-      const treasurePoints = treasureEvent.effectValue * 3;
+      const treasurePoints = treasureEvent.effectValue * OCEAN_EVENT_CONFIG.TREASURE_POINTS_MULTIPLIER;
       this.scoreSystem.addBonus(treasurePoints, treasureEvent.name);
       this.onTreasureCollected?.(treasureEvent, treasurePoints);
       return { hit: true };

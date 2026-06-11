@@ -244,8 +244,6 @@ export class OceanEventSystem {
 
       if (dist <= event.radius + 20) {
         event.active = false;
-        const points = event.effectValue * OCEAN_EVENT_CONFIG.TREASURE_POINTS_MULTIPLIER;
-        this.onTreasureCollected?.(event, points);
         return event;
       }
     }

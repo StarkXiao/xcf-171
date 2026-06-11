@@ -291,16 +291,6 @@ const handleOceanEventExpired = (event: OceanEvent) => {
 
 const handleTreasureCollected = (event: OceanEvent, points: number) => {
   refreshOceanEvents();
-  if (floatingScoreRef.value && containerRef.value) {
-    const rect = containerRef.value.getBoundingClientRect();
-    floatingScoreRef.value.addScore(
-      points,
-      event.name,
-      'collect',
-      rect.width / 2,
-      rect.height / 2
-    );
-  }
 };
 
 const refreshOceanEvents = () => {

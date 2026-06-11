@@ -313,7 +313,46 @@ export class MapRenderer {
       g.addChild(warn);
     }
 
+    if (target.enhancedByEvent) {
+      const eventColor = this.getEventColor(target.enhancedByEvent);
+      const eventRing = new PIXI.Graphics();
+      const pulse = 1 + Math.sin(Date.now() / 250) * 0.15;
+      eventRing.lineStyle(2, eventColor, 0.9);
+      eventRing.drawCircle(0, 0, target.radius * 1.4 * pulse);
+      g.addChild(eventRing);
+
+      const eventGlow = new PIXI.Graphics();
+      eventGlow.beginFill(eventColor, 0.15);
+      eventGlow.drawCircle(0, 0, target.radius * 2.2);
+      eventGlow.endFill();
+      g.addChildAt(eventGlow, 0);
+
+      const sparkCount = 3;
+      for (let i = 0; i < sparkCount; i++) {
+        const angle = (i / sparkCount) * Math.PI * 2 + Date.now() / 500;
+        const sparkR = target.radius * 1.7;
+        const spark = new PIXI.Graphics();
+        spark.beginFill(eventColor, 0.9);
+        spark.drawCircle(
+          Math.cos(angle) * sparkR,
+          Math.sin(angle) * sparkR,
+          2.5
+        );
+        spark.endFill();
+        g.addChild(spark);
+      }
+    }
+
     this.targetContainer.addChild(g);
+  }
+
+  private getEventColor(eventType: string): number {
+    switch (eventType) {
+      case 'current': return 0x00aaff;
+      case 'interference': return 0xaa44ff;
+      case 'treasure': return 0xffdd00;
+      default: return 0x00ffaa;
+    }
   }
 
   public drawPlayer(position: Position) {
