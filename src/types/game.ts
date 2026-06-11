@@ -979,6 +979,7 @@ export interface MissionObjective {
   type: MissionObjectiveType;
   targetValue: number;
   currentValue: number;
+  limitValue?: number;
 }
 
 export type MissionEffectType =

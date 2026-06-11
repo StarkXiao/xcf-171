@@ -518,6 +518,7 @@ export class GameController {
         }
 
         if (!alive) {
+          this.missionSystem.onGameOver();
           this.scoreSystem.endGame();
           this.salvageEvent?.recordExpeditionCompleted();
           this.oceanEventSystem.stop();
@@ -576,16 +577,6 @@ export class GameController {
   }
 
   private applyMissionStartEffects(): void {
-    const extraLives = this.missionSystem.getExtraLives();
-    if (extraLives > 0) {
-      this.scoreSystem.addLife(extraLives);
-    }
-
-    const sonarBonus = this.missionSystem.getSonarChargeBonus();
-    if (sonarBonus > 0) {
-      this.scoreSystem.addSonarCharges(sonarBonus);
-    }
-
     const dangerModifier = this.missionSystem.getDangerCountModifier();
     this.targetGenerator.setMultipliers({
       creatureCountMul: this.currentEffects.creatureCountMul,
@@ -600,14 +591,15 @@ export class GameController {
   private applyMissionEffects(mission: Mission): void {
     this.scoreSystem.addBonus(mission.completionBonus, `任务完成: ${mission.title}`);
 
-    const extraLives = this.missionSystem.getExtraLives();
-    if (extraLives > 0) {
-      this.scoreSystem.addLife(extraLives);
-    }
-
-    const sonarBonus = this.missionSystem.getSonarChargeBonus();
-    if (sonarBonus > 0) {
-      this.scoreSystem.addSonarCharges(sonarBonus);
+    for (const effect of mission.rewardEffects) {
+      switch (effect.type) {
+        case 'extra_life':
+          this.scoreSystem.addLife(effect.value);
+          break;
+        case 'sonar_charge_bonus':
+          this.scoreSystem.addSonarCharges(effect.value);
+          break;
+      }
     }
   }
 

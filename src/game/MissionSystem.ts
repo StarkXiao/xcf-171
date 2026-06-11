@@ -2,6 +2,7 @@ import type {
   Mission,
   MissionCategory,
   MissionObjectiveType,
+  MissionObjective,
   MissionEffect,
   MissionEffectType,
   MissionState,
@@ -219,9 +220,11 @@ export class MissionSystem {
   private dangersHit: number = 0;
   private targetsDiscovered: number = 0;
   private sonarFired: number = 0;
-  private sonarWithDiscovery: number = 0;
+  private sonarPulsesWithDiscovery: number = 0;
+  private currentPulseDiscovered: boolean = false;
   private consecutiveNoDamageLevels: number = 0;
   private hitDangerThisLevel: boolean = false;
+  private isGameOver: boolean = false;
   private levelCollections: Map<number, { collected: number; total: number }> = new Map();
   private onMissionCompleted?: (mission: Mission) => void;
   private onMissionProgress?: (mission: Mission) => void;
@@ -236,9 +239,11 @@ export class MissionSystem {
     this.dangersHit = 0;
     this.targetsDiscovered = 0;
     this.sonarFired = 0;
-    this.sonarWithDiscovery = 0;
+    this.sonarPulsesWithDiscovery = 0;
+    this.currentPulseDiscovered = false;
     this.consecutiveNoDamageLevels = 0;
     this.hitDangerThisLevel = false;
+    this.isGameOver = false;
     this.levelCollections.clear();
     missionIdCounter = 0;
 
@@ -278,17 +283,24 @@ export class MissionSystem {
       });
     }
 
+    const objective: MissionObjective = {
+      type: tmpl.objectiveType,
+      targetValue,
+      currentValue: 0,
+    };
+
+    if (tmpl.objectiveType === 'use_sonar_under') {
+      objective.limitValue = targetValue;
+      objective.targetValue = 1;
+    }
+
     return {
       id: `mission_${++missionIdCounter}_${Date.now()}`,
       category: tmpl.category,
       title: tmpl.title,
       description: desc,
       icon: tmpl.icon,
-      objective: {
-        type: tmpl.objectiveType,
-        targetValue,
-        currentValue: 0,
-      },
+      objective,
       rewardEffects: effects,
       completionBonus: randomInRange(
         tmpl.completionBonusRange[0],
@@ -328,11 +340,15 @@ export class MissionSystem {
 
   onDiscoverTarget(): void {
     this.targetsDiscovered++;
-    this.sonarWithDiscovery++;
+    this.currentPulseDiscovered = true;
     this.updateAllObjectives(this.currentLevel);
   }
 
   onFireSonar(): void {
+    if (this.currentPulseDiscovered) {
+      this.sonarPulsesWithDiscovery++;
+      this.currentPulseDiscovered = false;
+    }
     this.sonarFired++;
     this.updateAllObjectives(this.currentLevel);
   }
@@ -346,6 +362,15 @@ export class MissionSystem {
     this.hitDangerThisLevel = false;
     this.currentLevel = newLevel;
     this.updateAllObjectives(newLevel);
+  }
+
+  onGameOver(): void {
+    this.isGameOver = true;
+    if (this.currentPulseDiscovered) {
+      this.sonarPulsesWithDiscovery++;
+      this.currentPulseDiscovered = false;
+    }
+    this.updateAllObjectives(this.currentLevel);
   }
 
   setLevelTargetCounts(level: number, total: number): void {
@@ -397,16 +422,18 @@ export class MissionSystem {
         return this.targetsDiscovered;
       case 'sonar_efficiency':
         if (this.sonarFired === 0) return 0;
-        return Math.round((this.sonarWithDiscovery / this.sonarFired) * 100);
+        return Math.round((this.sonarPulsesWithDiscovery / this.sonarFired) * 100);
       case 'avoid_all_dangers':
-        return this.dangersHit === 0 ? 1 : 0;
+        return this.isGameOver && this.dangersHit === 0 ? 1 : 0;
       case 'collect_all_in_level':
         for (const [, data] of this.levelCollections) {
           if (data.total > 0 && data.collected >= data.total) return 1;
         }
         return 0;
-      case 'use_sonar_under':
-        return this.sonarFired <= mission.objective.targetValue ? 1 : 0;
+      case 'use_sonar_under': {
+        const limit = mission.objective.limitValue ?? mission.objective.targetValue;
+        return this.isGameOver && this.sonarFired <= limit ? 1 : 0;
+      }
       default:
         return 0;
     }
@@ -416,8 +443,10 @@ export class MissionSystem {
     switch (mission.objective.type) {
       case 'avoid_all_dangers':
         return this.dangersHit > 0 && !mission.completed;
-      case 'use_sonar_under':
-        return this.sonarFired > mission.objective.targetValue && !mission.completed;
+      case 'use_sonar_under': {
+        const limit = mission.objective.limitValue ?? mission.objective.targetValue;
+        return this.sonarFired > limit && !mission.completed;
+      }
       default:
         return false;
     }
@@ -523,9 +552,11 @@ export class MissionSystem {
     this.dangersHit = 0;
     this.targetsDiscovered = 0;
     this.sonarFired = 0;
-    this.sonarWithDiscovery = 0;
+    this.sonarPulsesWithDiscovery = 0;
+    this.currentPulseDiscovered = false;
     this.consecutiveNoDamageLevels = 0;
     this.hitDangerThisLevel = false;
+    this.isGameOver = false;
     this.levelCollections.clear();
   }
 }
