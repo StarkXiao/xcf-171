@@ -11,6 +11,7 @@ export class SonarSystem {
   private maxRadius: number = GAME_CONFIG.SONAR.MAX_RADIUS;
   private speed: number = GAME_CONFIG.SONAR.SPEED;
   private precisionBonus: number = 0;
+  private echoRangeMul: number = 1.0;
   private echoCountMul: number = 1.0;
   private echoLifeMul: number = 1.0;
   private echoSizeMul: number = 1.0;
@@ -23,11 +24,13 @@ export class SonarSystem {
   }
 
   setDetectorParams(
+    echoRangeMul: number = 1.0,
     echoCountMul: number = 1.0,
     echoLifeMul: number = 1.0,
     echoSizeMul: number = 1.0,
     discoveryEfficiencyMul: number = 1.0
   ) {
+    this.echoRangeMul = echoRangeMul;
     this.echoCountMul = echoCountMul;
     this.echoLifeMul = echoLifeMul;
     this.echoSizeMul = echoSizeMul;
@@ -43,7 +46,7 @@ export class SonarSystem {
       id: waveIdCounter++,
       position: { ...position },
       radius: 0,
-      maxRadius: this.maxRadius,
+      maxRadius: this.maxRadius * this.echoRangeMul,
       speed: this.speed,
       active: true,
       alpha: 1,

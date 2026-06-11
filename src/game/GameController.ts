@@ -61,6 +61,7 @@ export class GameController {
       dangerScorePenaltyMul: this.currentEffects.dangerScorePenaltyMul,
     });
     this.sonar.setDetectorParams(
+      this.currentEffects.echoRangeMul,
       this.currentEffects.echoCountMul,
       this.currentEffects.echoLifeMul,
       this.currentEffects.echoSizeMul,
@@ -241,6 +242,7 @@ export class GameController {
       this.currentEffects.precisionBonus
     );
     this.sonar.setDetectorParams(
+      this.currentEffects.echoRangeMul,
       this.currentEffects.echoCountMul,
       this.currentEffects.echoLifeMul,
       this.currentEffects.echoSizeMul,
