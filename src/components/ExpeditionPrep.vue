@@ -112,6 +112,43 @@
             </div>
           </div>
         </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <span class="section-icon">🔊</span>
+            <span class="section-name">探测器</span>
+          </div>
+          <div class="equipment-list">
+            <div
+              v-for="det in detectors"
+              :key="det.id"
+              class="equipment-item"
+              :class="{ active: loadout.detector === det.id, locked: !isDetectorUnlocked(det.id) }"
+              @click="isDetectorUnlocked(det.id) && selectDetector(det.id)"
+            >
+              <div class="eq-icon">{{ det.icon }}</div>
+              <div class="eq-info">
+                <div class="eq-name">
+                  {{ det.name }}
+                  <span v-if="!isDetectorUnlocked(det.id)" class="lock-badge">🔒 未解锁</span>
+                </div>
+                <div class="eq-desc">{{ det.description }}</div>
+                <div class="eq-stats">
+                  <span class="stat" :class="{ good: det.stats.echoRangeMul > 1, bad: det.stats.echoRangeMul < 1 }">
+                    回波范围 {{ formatPct(det.stats.echoRangeMul) }}
+                  </span>
+                  <span class="stat" :class="{ good: det.stats.discoveryEfficiencyMul > 1, bad: det.stats.discoveryEfficiencyMul < 1 }">
+                    发现效率 {{ formatPct(det.stats.discoveryEfficiencyMul) }}
+                  </span>
+                  <span class="stat" :class="{ good: det.stats.dangerLifePenaltyMul < 1, bad: det.stats.dangerLifePenaltyMul > 1 }">
+                    生命惩罚 {{ formatPct(det.stats.dangerLifePenaltyMul) }}
+                  </span>
+                </div>
+              </div>
+              <div class="eq-check" v-if="loadout.detector === det.id">✓</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="effects-summary">
@@ -149,6 +186,22 @@
             <span class="s-label">收益倍率</span>
             <span class="s-value highlight">{{ formatPct(effects.scoreMul) }}</span>
           </div>
+          <div class="summary-item">
+            <span class="s-label">回波范围</span>
+            <span class="s-value">{{ formatPct(effects.echoRangeMul) }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="s-label">发现效率</span>
+            <span class="s-value">{{ formatPct(effects.discoveryEfficiencyMul) }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="s-label">回波数量</span>
+            <span class="s-value">{{ formatPct(effects.echoCountMul) }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="s-label">生命惩罚</span>
+            <span class="s-value" :class="{ bad: effects.dangerLifePenaltyMul > 1, good: effects.dangerLifePenaltyMul < 1 }">{{ formatPct(effects.dangerLifePenaltyMul) }}</span>
+          </div>
         </div>
       </div>
 
@@ -167,17 +220,20 @@ import type {
   SubmarineTier,
   SonarChipTier,
   SupplyPackTier,
+  DetectorTier,
 } from '../types/game';
 import {
   SUBMARINES,
   SONAR_CHIPS,
   SUPPLY_PACKS,
+  DETECTORS,
   DEFAULT_LOADOUT,
   computeLoadoutEffects,
 } from '../config/expeditionConfig';
 
 const props = defineProps<{
   initialLoadout?: ExpeditionLoadout;
+  unlockedDetectors?: DetectorTier[];
 }>();
 
 const emit = defineEmits<{
@@ -188,6 +244,7 @@ const emit = defineEmits<{
 const submarines = SUBMARINES;
 const sonarChips = SONAR_CHIPS;
 const supplyPacks = SUPPLY_PACKS;
+const detectors = DETECTORS;
 
 const loadout = reactive<ExpeditionLoadout>({
   ...(props.initialLoadout ?? DEFAULT_LOADOUT),
@@ -205,6 +262,17 @@ const selectSonarChip = (id: SonarChipTier) => {
 
 const selectSupplyPack = (id: SupplyPackTier) => {
   loadout.supplyPack = id;
+};
+
+const selectDetector = (id: DetectorTier) => {
+  loadout.detector = id;
+};
+
+const isDetectorUnlocked = (id: DetectorTier): boolean => {
+  if (!props.unlockedDetectors || props.unlockedDetectors.length === 0) {
+    return id === 'basic';
+  }
+  return props.unlockedDetectors.includes(id);
 };
 
 const formatPct = (mul: number) => {
@@ -347,6 +415,26 @@ const confirmStart = () => {
   box-shadow: 0 0 16px rgba(0, 255, 170, 0.15);
 }
 
+.equipment-item.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.equipment-item.locked:hover {
+  background: rgba(0, 30, 55, 0.5);
+  border-color: rgba(0, 255, 170, 0.12);
+  transform: none;
+}
+
+.lock-badge {
+  font-size: 10px;
+  color: #ff9966;
+  margin-left: 6px;
+  font-weight: normal;
+  opacity: 0.8;
+}
+
 .eq-icon {
   font-size: 28px;
   flex-shrink: 0;
@@ -449,6 +537,14 @@ const confirmStart = () => {
   font-weight: bold;
   color: rgba(0, 255, 200, 0.9);
   font-family: 'Courier New', monospace;
+}
+
+.s-value.good {
+  color: #00ffaa;
+}
+
+.s-value.bad {
+  color: #ff7788;
 }
 
 .s-value.highlight {

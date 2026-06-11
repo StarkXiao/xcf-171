@@ -2,11 +2,13 @@ import type {
   Submarine,
   SonarChip,
   SupplyPack,
+  Detector,
   ExpeditionLoadout,
   LoadoutEffects,
   SubmarineTier,
   SonarChipTier,
   SupplyPackTier,
+  DetectorTier,
   TechEffectType,
 } from '../types/game';
 import { GAME_CONFIG } from './gameConfig';
@@ -134,10 +136,74 @@ export const SUPPLY_PACKS: SupplyPack[] = [
   },
 ];
 
+export const DETECTORS: Detector[] = [
+  {
+    id: 'basic',
+    name: '基础探测器',
+    description: '标准探测性能，稳定可靠的回波接收',
+    icon: '📡',
+    stats: {
+      echoRangeMul: 1.0,
+      echoCountMul: 1.0,
+      echoLifeMul: 1.0,
+      echoSizeMul: 1.0,
+      discoveryEfficiencyMul: 1.0,
+      dangerLifePenaltyMul: 1.0,
+      dangerScorePenaltyMul: 1.0,
+    },
+  },
+  {
+    id: 'amplified',
+    name: '增幅探测器',
+    description: '增强回波信号，范围大数量多，但危险惩罚更重',
+    icon: '📢',
+    stats: {
+      echoRangeMul: 1.4,
+      echoCountMul: 1.5,
+      echoLifeMul: 1.2,
+      echoSizeMul: 1.3,
+      discoveryEfficiencyMul: 1.2,
+      dangerLifePenaltyMul: 1.5,
+      dangerScorePenaltyMul: 1.3,
+    },
+  },
+  {
+    id: 'deepscan',
+    name: '深扫探测器',
+    description: '深层扫描模式，发现效率极高，回波更持久',
+    icon: '🔍',
+    stats: {
+      echoRangeMul: 1.1,
+      echoCountMul: 2.0,
+      echoLifeMul: 1.8,
+      echoSizeMul: 1.1,
+      discoveryEfficiencyMul: 1.5,
+      dangerLifePenaltyMul: 1.2,
+      dangerScorePenaltyMul: 1.1,
+    },
+  },
+  {
+    id: 'shielded',
+    name: '护盾探测器',
+    description: '防护强化型，大幅降低危险惩罚，但探测性能略低',
+    icon: '🛡️',
+    stats: {
+      echoRangeMul: 0.85,
+      echoCountMul: 0.8,
+      echoLifeMul: 0.9,
+      echoSizeMul: 0.9,
+      discoveryEfficiencyMul: 0.85,
+      dangerLifePenaltyMul: 0.5,
+      dangerScorePenaltyMul: 0.6,
+    },
+  },
+];
+
 export const DEFAULT_LOADOUT: ExpeditionLoadout = {
   submarine: 'standard',
   sonarChip: 'basic',
   supplyPack: 'standard',
+  detector: 'basic',
 };
 
 export function getSubmarine(id: SubmarineTier): Submarine {
@@ -152,10 +218,15 @@ export function getSupplyPack(id: SupplyPackTier): SupplyPack {
   return SUPPLY_PACKS.find((s) => s.id === id) ?? SUPPLY_PACKS[1];
 }
 
+export function getDetector(id: DetectorTier): Detector {
+  return DETECTORS.find((d) => d.id === id) ?? DETECTORS[0];
+}
+
 export function computeLoadoutEffects(loadout: ExpeditionLoadout): LoadoutEffects {
   const sub = getSubmarine(loadout.submarine);
   const chip = getSonarChip(loadout.sonarChip);
   const pack = getSupplyPack(loadout.supplyPack);
+  const detector = getDetector(loadout.detector);
 
   return {
     mapHeight: Math.round(GAME_CONFIG.MAP_HEIGHT * sub.stats.mapHeightMul),
@@ -173,6 +244,13 @@ export function computeLoadoutEffects(loadout: ExpeditionLoadout): LoadoutEffect
     precisionBonus: chip.stats.precisionBonus,
     sonarRechargeTimeMul: 1.0,
     intelligenceRadar: false,
+    echoRangeMul: detector.stats.echoRangeMul,
+    echoCountMul: detector.stats.echoCountMul,
+    echoLifeMul: detector.stats.echoLifeMul,
+    echoSizeMul: detector.stats.echoSizeMul,
+    discoveryEfficiencyMul: detector.stats.discoveryEfficiencyMul,
+    dangerLifePenaltyMul: detector.stats.dangerLifePenaltyMul,
+    dangerScorePenaltyMul: detector.stats.dangerScorePenaltyMul,
   };
 }
 
@@ -208,6 +286,17 @@ export function applyTechEffects(
   }
   if (techEffects.intelligenceRadar) {
     effects.intelligenceRadar = true;
+  }
+  if (techEffects.echoRangeBonus) {
+    effects.echoRangeMul = effects.echoRangeMul * (1 + techEffects.echoRangeBonus);
+    effects.echoSizeMul = effects.echoSizeMul * (1 + techEffects.echoRangeBonus);
+  }
+  if (techEffects.discoveryEfficiencyBonus) {
+    effects.discoveryEfficiencyMul = effects.discoveryEfficiencyMul * (1 + techEffects.discoveryEfficiencyBonus);
+  }
+  if (techEffects.dangerPenaltyReduction) {
+    effects.dangerLifePenaltyMul = effects.dangerLifePenaltyMul * (1 - techEffects.dangerPenaltyReduction);
+    effects.dangerScorePenaltyMul = effects.dangerScorePenaltyMul * (1 - techEffects.dangerPenaltyReduction);
   }
 
   return effects;

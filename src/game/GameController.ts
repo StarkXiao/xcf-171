@@ -57,7 +57,15 @@ export class GameController {
       maxSonarCharges: this.currentEffects.maxSonarCharges + (this.salvageEvent?.getBonusSonarCharges() ?? 0),
       initialSonarBonus: this.currentEffects.initialSonarBonus,
       scoreMul: this.currentEffects.scoreMul,
+      dangerLifePenaltyMul: this.currentEffects.dangerLifePenaltyMul,
+      dangerScorePenaltyMul: this.currentEffects.dangerScorePenaltyMul,
     });
+    this.sonar.setDetectorParams(
+      this.currentEffects.echoCountMul,
+      this.currentEffects.echoLifeMul,
+      this.currentEffects.echoSizeMul,
+      this.currentEffects.discoveryEfficiencyMul
+    );
     this.collection = collectionSystem ?? new CollectionSystem();
     this.oceanEventSystem = new OceanEventSystem({
       mapWidth: GAME_CONFIG.MAP_WIDTH,
@@ -232,11 +240,19 @@ export class GameController {
       this.currentEffects.sonarSpeed,
       this.currentEffects.precisionBonus
     );
+    this.sonar.setDetectorParams(
+      this.currentEffects.echoCountMul,
+      this.currentEffects.echoLifeMul,
+      this.currentEffects.echoSizeMul,
+      this.currentEffects.discoveryEfficiencyMul
+    );
     this.scoreSystem.setParams({
       initialLivesBonus: this.currentEffects.livesBonus + (this.salvageEvent?.getBonusLives() ?? 0),
       maxSonarCharges: this.currentEffects.maxSonarCharges + (this.salvageEvent?.getBonusSonarCharges() ?? 0),
       initialSonarBonus: this.currentEffects.initialSonarBonus,
       scoreMul: this.currentEffects.scoreMul * wreckMultiplier,
+      dangerLifePenaltyMul: this.currentEffects.dangerLifePenaltyMul,
+      dangerScorePenaltyMul: this.currentEffects.dangerScorePenaltyMul,
     });
   }
 

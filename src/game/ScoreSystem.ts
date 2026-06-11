@@ -14,6 +14,8 @@ export interface ScoreSystemParams {
   maxSonarCharges?: number;
   initialSonarBonus?: number;
   scoreMul?: number;
+  dangerLifePenaltyMul?: number;
+  dangerScorePenaltyMul?: number;
 }
 
 export class ScoreSystem {
@@ -27,6 +29,8 @@ export class ScoreSystem {
     maxSonarCharges: number;
     initialSonarBonus: number;
     scoreMul: number;
+    dangerLifePenaltyMul: number;
+    dangerScorePenaltyMul: number;
   };
 
   constructor(params: ScoreSystemParams = {}) {
@@ -36,6 +40,8 @@ export class ScoreSystem {
       maxSonarCharges: params.maxSonarCharges ?? GAME_CONFIG.SONAR.MAX_CHARGES,
       initialSonarBonus: params.initialSonarBonus ?? 0,
       scoreMul: params.scoreMul ?? 1,
+      dangerLifePenaltyMul: params.dangerLifePenaltyMul ?? 1,
+      dangerScorePenaltyMul: params.dangerScorePenaltyMul ?? 1,
     };
     this.state = this.createInitialState();
   }
@@ -47,6 +53,8 @@ export class ScoreSystem {
       maxSonarCharges: params.maxSonarCharges ?? this.params.maxSonarCharges,
       initialSonarBonus: params.initialSonarBonus ?? this.params.initialSonarBonus,
       scoreMul: params.scoreMul ?? this.params.scoreMul,
+      dangerLifePenaltyMul: params.dangerLifePenaltyMul ?? this.params.dangerLifePenaltyMul,
+      dangerScorePenaltyMul: params.dangerScorePenaltyMul ?? this.params.dangerScorePenaltyMul,
     };
   }
 
@@ -103,9 +111,11 @@ export class ScoreSystem {
     if (this.state.score < 0) this.state.score = 0;
 
     if (target.type === 'danger') {
-      this.state.lives -= GAME_CONFIG.SCORE.LIFE_LOST;
+      const lifeLost = Math.ceil(GAME_CONFIG.SCORE.LIFE_LOST * this.params.dangerLifePenaltyMul);
+      const scorePenalty = Math.round(target.points * this.params.dangerScorePenaltyMul);
+      this.state.lives -= lifeLost;
       this.onScoreEvent?.({
-        points: target.points,
+        points: scorePenalty,
         targetName: target.name,
         type: 'damage',
         position: target.position,

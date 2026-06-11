@@ -11,11 +11,27 @@ export class SonarSystem {
   private maxRadius: number = GAME_CONFIG.SONAR.MAX_RADIUS;
   private speed: number = GAME_CONFIG.SONAR.SPEED;
   private precisionBonus: number = 0;
+  private echoCountMul: number = 1.0;
+  private echoLifeMul: number = 1.0;
+  private echoSizeMul: number = 1.0;
+  private discoveryEfficiencyMul: number = 1.0;
 
   setParams(maxRadius: number, speed: number, precisionBonus: number = 0) {
     this.maxRadius = maxRadius;
     this.speed = speed;
     this.precisionBonus = precisionBonus;
+  }
+
+  setDetectorParams(
+    echoCountMul: number = 1.0,
+    echoLifeMul: number = 1.0,
+    echoSizeMul: number = 1.0,
+    discoveryEfficiencyMul: number = 1.0
+  ) {
+    this.echoCountMul = echoCountMul;
+    this.echoLifeMul = echoLifeMul;
+    this.echoSizeMul = echoSizeMul;
+    this.discoveryEfficiencyMul = discoveryEfficiencyMul;
   }
 
   setEchoCallback(callback: (echos: EchoPoint[]) => void) {
@@ -60,12 +76,24 @@ export class SonarSystem {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist >= prevRadius - target.radius && dist <= wave.radius + target.radius) {
+          if (Math.random() > this.discoveryEfficiencyMul && this.discoveryEfficiencyMul < 1) {
+            continue;
+          }
+          
           target.discovered = true;
           discoveredIds.push(target.id);
 
-          const echoCount = target.type === 'wreck' ? 3 : target.type === 'danger' ? 2 : 1;
-          for (let i = 0; i < echoCount; i++) {
-            const angleOffset = (i - (echoCount - 1) / 2) * 0.3;
+          const baseEchoCount = target.type === 'wreck' ? 3 : target.type === 'danger' ? 2 : 1;
+          const rawEchoCount = baseEchoCount * this.echoCountMul;
+          const echoCount = Math.max(1, Math.floor(rawEchoCount));
+          const extraEchoChance = rawEchoCount - echoCount;
+          
+          const totalEchoes = echoCount + (Math.random() < extraEchoChance ? 1 : 0);
+          
+          const baseLife = 2.5 * this.echoLifeMul;
+          
+          for (let i = 0; i < totalEchoes; i++) {
+            const angleOffset = (i - (totalEchoes - 1) / 2) * 0.3;
             const angle = Math.atan2(dy, dx) + angleOffset;
             const r = target.radius * (0.7 + Math.random() * 0.6);
             const echoPos = {
@@ -78,9 +106,9 @@ export class SonarSystem {
               targetId: target.id,
               type: target.type,
               alpha: 1,
-              life: 2.5,
-              maxLife: 2.5,
-              size: target.radius * (0.4 + Math.random() * 0.4),
+              life: baseLife,
+              maxLife: baseLife,
+              size: target.radius * (0.4 + Math.random() * 0.4) * this.echoSizeMul,
             };
             this.echoPoints.push(echo);
             newEchos.push(echo);

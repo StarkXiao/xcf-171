@@ -43,6 +43,7 @@
     <ExpeditionPrep
       v-if="showPrep && !gameStarted && !showCollection"
       :initial-loadout="currentLoadout"
+      :unlocked-detectors="unlockedDetectors"
       @start="handlePrepStart"
       @back="closePrep"
     />
@@ -100,15 +101,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect } from './types/game';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
 import { VoyageArchiveSystem } from './game/VoyageArchiveSystem';
 import { SalvageEventSystem } from './game/SalvageEventSystem';
+import { ResearchStationSystem } from './game/ResearchStationSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
-import { DEFAULT_LOADOUT } from './config/expeditionConfig';
+import { DEFAULT_LOADOUT, applyTechEffects, computeLoadoutEffects } from './config/expeditionConfig';
 import GameHUD from './components/GameHUD.vue';
 import StartScreen from './components/StartScreen.vue';
 import GameOverScreen from './components/GameOverScreen.vue';
@@ -154,6 +156,16 @@ const missionResult = ref<MissionResult | null>(null);
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
 const salvageEventSystem = new SalvageEventSystem();
+const researchStationSystem = new ResearchStationSystem();
+
+const unlockedDetectors = computed<DetectorTier[]>(() => {
+  const detectors: DetectorTier[] = ['basic'];
+  const effects = researchStationSystem.getAggregatedEffects();
+  if (effects.unlockDetectorAmplified) detectors.push('amplified');
+  if (effects.unlockDetectorDeepscan) detectors.push('deepscan');
+  if (effects.unlockDetectorShielded) detectors.push('shielded');
+  return detectors;
+});
 
 const relayGameState = reactive<RelayGameState>({
   isPlaying: false,

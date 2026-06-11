@@ -80,6 +80,7 @@ export interface GameState {
 export type SubmarineTier = 'scout' | 'standard' | 'heavy';
 export type SonarChipTier = 'basic' | 'precision' | 'wide';
 export type SupplyPackTier = 'light' | 'standard' | 'premium';
+export type DetectorTier = 'basic' | 'amplified' | 'deepscan' | 'shielded';
 
 export interface Submarine {
   id: SubmarineTier;
@@ -122,10 +123,27 @@ export interface SupplyPack {
   };
 }
 
+export interface Detector {
+  id: DetectorTier;
+  name: string;
+  description: string;
+  icon: string;
+  stats: {
+    echoRangeMul: number;
+    echoCountMul: number;
+    echoLifeMul: number;
+    echoSizeMul: number;
+    discoveryEfficiencyMul: number;
+    dangerLifePenaltyMul: number;
+    dangerScorePenaltyMul: number;
+  };
+}
+
 export interface ExpeditionLoadout {
   submarine: SubmarineTier;
   sonarChip: SonarChipTier;
   supplyPack: SupplyPackTier;
+  detector: DetectorTier;
 }
 
 export interface LoadoutEffects {
@@ -144,6 +162,13 @@ export interface LoadoutEffects {
   precisionBonus: number;
   sonarRechargeTimeMul: number;
   intelligenceRadar: boolean;
+  echoRangeMul: number;
+  echoCountMul: number;
+  echoLifeMul: number;
+  echoSizeMul: number;
+  discoveryEfficiencyMul: number;
+  dangerLifePenaltyMul: number;
+  dangerScorePenaltyMul: number;
 }
 
 export type DailyChallengeRuleType =
@@ -211,7 +236,13 @@ export type TechEffectType =
   | 'livesBonus'
   | 'initialSonarBonus'
   | 'creaturePointsBonus'
-  | 'wreckPointsBonus';
+  | 'wreckPointsBonus'
+  | 'unlockDetectorAmplified'
+  | 'unlockDetectorDeepscan'
+  | 'unlockDetectorShielded'
+  | 'echoRangeBonus'
+  | 'discoveryEfficiencyBonus'
+  | 'dangerPenaltyReduction';
 
 export interface TechNode {
   id: string;
