@@ -83,8 +83,8 @@
               :placeholder="`玩家${idx + 1}`"
               maxlength="8"
             />
-            <span class="player-role-tag" :style="{ color: roles[assignedRoles[idx]].color }">
-              {{ roles[assignedRoles[idx]].icon }} {{ roles[assignedRoles[idx]].name }}
+            <span class="player-role-tag" :style="{ color: RELAY_ROLES[assignedRoles[idx]].color }">
+              {{ RELAY_ROLES[assignedRoles[idx]].icon }} {{ RELAY_ROLES[assignedRoles[idx]].name }}
             </span>
           </div>
         </div>
