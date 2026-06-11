@@ -43,6 +43,23 @@
         </div>
       </div>
 
+      <div class="relay-entry" @click="$emit('openRelayMode')">
+        <div class="relay-icon-wrap">
+          <span class="relay-icon">🤝</span>
+          <span class="relay-glow"></span>
+        </div>
+        <div class="relay-info">
+          <div class="relay-title">多人接力探索</div>
+          <div class="relay-subtitle">同设备轮流 · 分工协作</div>
+        </div>
+        <div class="relay-score" v-if="(relayHighScore ?? 0) > 0">
+          <span class="relay-score-label">最佳</span>
+          <span class="relay-score-value">{{ relayHighScore }}</span>
+        </div>
+        <div class="relay-badge">NEW</div>
+        <div class="relay-arrow">›</div>
+      </div>
+
       <div class="btn-row">
         <button class="prep-btn" @click="$emit('openPrep')">
           <span class="prep-icon">⚙️</span>
@@ -91,12 +108,14 @@ const props = defineProps<{
     wrecks: { total: number; unlocked: number };
     dangers: { total: number; unlocked: number };
   };
+  relayHighScore?: number;
 }>();
 
 defineEmits<{
   (e: 'start'): void;
   (e: 'openCollection'): void;
   (e: 'openPrep'): void;
+  (e: 'openRelayMode'): void;
 }>();
 
 const collectionPercent = computed(() => {
@@ -438,5 +457,153 @@ const collectionPercent = computed(() => {
 .collection-entry:hover .collection-entry-arrow {
   transform: translateX(3px);
   color: rgba(0, 255, 200, 0.8);
+}
+
+.relay-entry {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(150, 100, 255, 0.1), rgba(100, 50, 200, 0.1));
+  border: 1px solid rgba(150, 120, 255, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.relay-entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(150, 120, 255, 0.08),
+    transparent
+  );
+  animation: relay-shine 3s ease-in-out infinite;
+}
+
+@keyframes relay-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.relay-entry:hover {
+  background: linear-gradient(135deg, rgba(170, 120, 255, 0.18), rgba(120, 70, 220, 0.18));
+  border-color: rgba(170, 140, 255, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(150, 120, 255, 0.2);
+}
+
+.relay-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.relay-icon {
+  font-size: 28px;
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+.relay-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background: rgba(150, 100, 255, 0.3);
+  border-radius: 50%;
+  animation: relay-icon-glow 2s ease-in-out infinite;
+}
+
+@keyframes relay-icon-glow {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0.2;
+  }
+}
+
+.relay-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.relay-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(180, 160, 255, 0.95);
+  letter-spacing: 2px;
+}
+
+.relay-subtitle {
+  font-size: 11px;
+  color: rgba(160, 140, 240, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.relay-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.relay-score-label {
+  font-size: 9px;
+  color: rgba(160, 140, 240, 0.5);
+  letter-spacing: 1px;
+}
+
+.relay-score-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #cc99ff;
+  font-family: 'Courier New', monospace;
+}
+
+.relay-badge {
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #9966ff, #7744dd);
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(150, 100, 255, 0.5);
+}
+
+.relay-arrow {
+  font-size: 22px;
+  color: rgba(150, 120, 255, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.relay-entry:hover .relay-arrow {
+  transform: translateX(3px);
+  color: rgba(180, 150, 255, 0.8);
 }
 </style>
