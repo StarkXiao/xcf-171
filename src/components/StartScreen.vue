@@ -81,6 +81,23 @@
         <div class="relay-arrow">›</div>
       </div>
 
+      <div class="voiceprint-entry" @click="$emit('openVoiceprintLab')">
+        <div class="voiceprint-icon-wrap">
+          <span class="voiceprint-icon">🔬</span>
+          <span class="voiceprint-glow"></span>
+        </div>
+        <div class="voiceprint-info">
+          <div class="voiceprint-title">声纹识别实验室</div>
+          <div class="voiceprint-subtitle">多次采样 · 真伪判别 · 高风险高收益</div>
+        </div>
+        <div class="voiceprint-score" v-if="(voiceprintHighScore ?? 0) > 0">
+          <span class="voiceprint-score-label">最佳</span>
+          <span class="voiceprint-score-value">{{ voiceprintHighScore }}</span>
+        </div>
+        <div class="voiceprint-badge">HOT</div>
+        <div class="voiceprint-arrow">›</div>
+      </div>
+
       <div class="btn-row">
         <button class="prep-btn" @click="$emit('openPrep')">
           <span class="prep-icon">⚙️</span>
@@ -131,6 +148,7 @@ const props = defineProps<{
     dangers: { total: number; unlocked: number };
   };
   relayHighScore?: number;
+  voiceprintHighScore?: number;
   eventState?: SalvageEventState | null;
 }>();
 
@@ -140,6 +158,7 @@ defineEmits<{
   (e: 'openPrep'): void;
   (e: 'openRelayMode'): void;
   (e: 'openSalvageEvent'): void;
+  (e: 'openVoiceprintLab'): void;
 }>();
 
 const collectionPercent = computed(() => {
@@ -795,5 +814,154 @@ const formatCountdown = (ms: number): string => {
 .salvage-entry:hover .salvage-arrow {
   transform: translateX(3px);
   color: rgba(255, 210, 140, 0.8);
+}
+
+.voiceprint-entry {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(255, 102, 255, 0.08), rgba(0, 170, 255, 0.08));
+  border: 1px solid rgba(255, 102, 255, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.voiceprint-entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 102, 255, 0.08),
+    transparent
+  );
+  animation: voiceprint-shine 3s ease-in-out infinite;
+}
+
+@keyframes voiceprint-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.voiceprint-entry:hover {
+  background: linear-gradient(135deg, rgba(255, 102, 255, 0.15), rgba(0, 170, 255, 0.15));
+  border-color: rgba(255, 150, 255, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(255, 102, 255, 0.2);
+}
+
+.voiceprint-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.voiceprint-icon {
+  font-size: 28px;
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+.voiceprint-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 102, 255, 0.3);
+  border-radius: 50%;
+  animation: voiceprint-icon-glow 2s ease-in-out infinite;
+}
+
+@keyframes voiceprint-icon-glow {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0.2;
+  }
+}
+
+.voiceprint-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.voiceprint-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 150, 255, 0.95);
+  letter-spacing: 2px;
+}
+
+.voiceprint-subtitle {
+  font-size: 11px;
+  color: rgba(200, 150, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voiceprint-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.voiceprint-score-label {
+  font-size: 9px;
+  color: rgba(200, 150, 255, 0.5);
+  letter-spacing: 1px;
+}
+
+.voiceprint-score-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ff99ff;
+  font-family: 'Courier New', monospace;
+}
+
+.voiceprint-badge {
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #ff66ff, #00aaff);
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(255, 102, 255, 0.5);
+  animation: badge-pulse 1.5s ease-in-out infinite;
+}
+
+.voiceprint-arrow {
+  font-size: 22px;
+  color: rgba(255, 102, 255, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.voiceprint-entry:hover .voiceprint-arrow {
+  transform: translateX(3px);
+  color: rgba(255, 150, 255, 0.8);
 }
 </style>

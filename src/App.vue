@@ -17,16 +17,18 @@
     />
 
     <StartScreen
-      v-if="!gameStarted && !showCollection && !showPrep && !showRelayIntro && !showSalvageEvent"
+      v-if="!gameStarted && !showCollection && !showPrep && !showRelayIntro && !showSalvageEvent && !showVoiceprintLab"
       :high-score="highScore"
       :collection-stats="collectionStats"
       :relay-high-score="relayHighScore"
+      :voiceprint-high-score="voiceprintHighScore"
       :event-state="salvageEventState"
       @start="handleStart"
       @open-collection="openCollection"
       @open-prep="openPrep"
       @open-relay-mode="openRelayIntro"
       @open-salvage-event="openSalvageEvent"
+      @open-voiceprint-lab="openVoiceprintLab"
     />
 
     <RelayModeIntro
@@ -69,6 +71,14 @@
       @close="closeSalvageEvent"
     />
 
+    <VoiceprintLab
+      v-if="showVoiceprintLab"
+      :system="voiceprintLabSystem"
+      :high-score="voiceprintHighScore"
+      @close="closeVoiceprintLab"
+      @verdict="handleVoiceprintVerdict"
+    />
+
     <CollectionCenter
       v-if="showCollection"
       :collection-data="collectionData"
@@ -88,12 +98,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
 import { VoyageArchiveSystem } from './game/VoyageArchiveSystem';
 import { SalvageEventSystem } from './game/SalvageEventSystem';
+import { VoiceprintLabSystem } from './game/VoiceprintLabSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT } from './config/expeditionConfig';
 import GameHUD from './components/GameHUD.vue';
@@ -106,6 +117,7 @@ import RelayModeIntro from './components/RelayModeIntro.vue';
 import RelayGameHUD from './components/RelayGameHUD.vue';
 import RelayGameOver from './components/RelayGameOver.vue';
 import SalvageEvent from './components/SalvageEvent.vue';
+import VoiceprintLab from './components/VoiceprintLab.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -129,9 +141,14 @@ const isRelayNewRecord = ref(false);
 const showSalvageEvent = ref(false);
 const salvageEventState = ref<SalvageEventState | null>(null);
 
+const showVoiceprintLab = ref(false);
+const voiceprintHighScore = ref(0);
+const lastVoiceprintVerdict = ref<VoiceprintVerdict | null>(null);
+
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
 const salvageEventSystem = new SalvageEventSystem();
+const voiceprintLabSystem = new VoiceprintLabSystem(collectionSystem);
 
 const relayGameState = reactive<RelayGameState>({
   isPlaying: false,
@@ -184,6 +201,27 @@ const openSalvageEvent = () => {
 
 const closeSalvageEvent = () => {
   showSalvageEvent.value = false;
+};
+
+const openVoiceprintLab = () => {
+  showVoiceprintLab.value = true;
+};
+
+const closeVoiceprintLab = () => {
+  showVoiceprintLab.value = false;
+  lastVoiceprintVerdict.value = null;
+};
+
+const handleVoiceprintVerdict = (verdict: VoiceprintVerdict) => {
+  lastVoiceprintVerdict.value = verdict;
+  refreshCollection();
+
+  if (verdict.isNewHighScore && verdict.totalScore > voiceprintHighScore.value) {
+    voiceprintHighScore.value = verdict.totalScore;
+    try {
+      localStorage.setItem('deepSeaSonar_voiceprintHighScore', String(verdict.totalScore));
+    } catch (_e) {}
+  }
 };
 
 const gameState = reactive<GameState>({
@@ -452,7 +490,9 @@ const handleHome = () => {
   showHint.value = true;
   showRelayHint.value = true;
   showRelayIntro.value = false;
+  showVoiceprintLab.value = false;
   lastRelayResult.value = null;
+  lastVoiceprintVerdict.value = null;
   refreshCollection();
 
   if (relaySystem) {
@@ -544,6 +584,12 @@ onMounted(() => {
         relayHighScore.value = parseInt(savedRelayScore, 10) || 0;
       } catch (_e) {}
     }
+    const savedVoiceprintScore = localStorage.getItem('deepSeaSonar_voiceprintHighScore');
+    if (savedVoiceprintScore) {
+      try {
+        voiceprintHighScore.value = parseInt(savedVoiceprintScore, 10) || 0;
+      } catch (_e) {}
+    }
   } catch (_e) {}
 
   refreshCollection();
@@ -573,6 +619,7 @@ onUnmounted(() => {
   gameController?.destroy();
   relaySystem?.destroy();
   salvageEventSystem.destroy();
+  voiceprintLabSystem.destroy();
   const salvageTimer = (window as any).__salvageTimer;
   if (salvageTimer) {
     clearInterval(salvageTimer);

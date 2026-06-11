@@ -805,4 +805,119 @@ export type SalvageEventType =
   | { type: 'event_started' }
   | { type: 'event_ended' };
 
+export type VoiceprintSampleQuality = 'poor' | 'fair' | 'good' | 'excellent';
+
+export type VoiceprintTargetCategory = 'creature' | 'wreck' | 'anomaly';
+
+export interface VoiceprintEchoFeature {
+  id: number;
+  frequency: number;
+  amplitude: number;
+  duration: number;
+  pattern: 'regular' | 'irregular' | 'chaotic' | 'pulsing';
+  isGenuine: boolean;
+  quality: VoiceprintSampleQuality;
+  noiseLevel: number;
+}
+
+export interface VoiceprintTarget {
+  id: number;
+  name: string;
+  category: VoiceprintTargetCategory;
+  isGenuine: boolean;
+  genuineFeatures: VoiceprintEchoFeature[];
+  decoyFeatures: VoiceprintEchoFeature[];
+  position: Position;
+  radius: number;
+  basePoints: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'extreme';
+  description: string;
+  icon: string;
+  revealed: boolean;
+  analyzed: boolean;
+  verdictCorrect?: boolean;
+}
+
+export interface VoiceprintSample {
+  id: number;
+  targetId: number;
+  targetName: string;
+  features: VoiceprintEchoFeature[];
+  collectedAt: number;
+  sonarCost: number;
+}
+
+export interface VoiceprintRiskProfile {
+  sampleCount: number;
+  successRate: number;
+  rewardMultiplier: number;
+  penaltyMultiplier: number;
+  label: string;
+}
+
+export interface VoiceprintVerdict {
+  targetId: number;
+  targetName: string;
+  samplesUsed: number;
+  userVerdict: 'genuine' | 'fake';
+  actualIsGenuine: boolean;
+  isCorrect: boolean;
+  pointsGained: number;
+  pointsLost: number;
+  timestamp: number;
+  totalScore: number;
+  isNewHighScore: boolean;
+}
+
+export interface VoiceprintLabState {
+  isPlaying: boolean;
+  isPaused: boolean;
+  isGameOver: boolean;
+  score: number;
+  lives: number;
+  maxLives: number;
+  sonarCharges: number;
+  maxSonarCharges: number;
+  level: number;
+  currentTargetId: number | null;
+  targets: VoiceprintTarget[];
+  collectedSamples: VoiceprintSample[];
+  verdictHistory: VoiceprintVerdict[];
+  correctVerdicts: number;
+  wrongVerdicts: number;
+  consecutiveCorrect: number;
+  maxConsecutiveCorrect: number;
+  highRiskBonus: number;
+  totalSonarUsed: number;
+  targetsAnalyzed: number;
+  targetsRemaining: number;
+}
+
+export interface VoiceprintResult {
+  finalScore: number;
+  level: number;
+  correctVerdicts: number;
+  wrongVerdicts: number;
+  accuracy: number;
+  totalSonarUsed: number;
+  highRiskBonus: number;
+  maxConsecutiveCorrect: number;
+  isNewRecord: boolean;
+  rank: 'S' | 'A' | 'B' | 'C' | 'D';
+  sessionUnlocks: UnlockEvent[];
+  verdictHistory: VoiceprintVerdict[];
+}
+
+export type VoiceprintLabEvent =
+  | { type: 'sample_collected'; sample: VoiceprintSample }
+  | { type: 'verdict_made'; verdict: VoiceprintVerdict }
+  | { type: 'target_revealed'; target: VoiceprintTarget }
+  | { type: 'level_up'; newLevel: number; bonus: number }
+  | { type: 'game_over'; result: VoiceprintResult }
+  | { type: 'sonar_fired'; position: Position; cost: number }
+  | { type: 'combo_increase'; combo: number }
+  | { type: 'combo_break' }
+  | { type: 'life_lost'; reason: string }
+  | { type: 'bonus_gained'; points: number; reason: string };
+
 
