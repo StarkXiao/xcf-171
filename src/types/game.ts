@@ -908,6 +908,59 @@ export interface VoiceprintResult {
   verdictHistory: VoiceprintVerdict[];
 }
 
+export type OceanEventType = 'current' | 'interference' | 'treasure';
+
+export interface OceanEvent {
+  id: number;
+  type: OceanEventType;
+  name: string;
+  description: string;
+  position: Position;
+  radius: number;
+  intensity: number;
+  duration: number;
+  remainingTime: number;
+  active: boolean;
+  icon: string;
+  color: number;
+  effectValue: number;
+}
+
+export interface OceanEventConfig {
+  type: OceanEventType;
+  name: string;
+  description: string;
+  icon: string;
+  color: number;
+  baseRadius: number;
+  baseIntensity: number;
+  baseDuration: number;
+  spawnChance: number;
+  maxCount: number;
+  effectValue: number;
+}
+
+export interface OceanEventState {
+  activeEvents: OceanEvent[];
+  currentLevel: number;
+  eventCooldowns: Record<OceanEventType, number>;
+}
+
+export type OceanEventEffectType =
+  | 'player_speed'
+  | 'sonar_radius'
+  | 'sonar_recharge'
+  | 'score_multiplier'
+  | 'target_points'
+  | 'extra_life';
+
+export interface OceanEventEffect {
+  type: OceanEventEffectType;
+  value: number;
+  sourceEventId: number;
+  duration: number;
+}
+
 export type VoiceprintLabEvent =
   | { type: 'sample_collected'; sample: VoiceprintSample }
   | { type: 'verdict_made'; verdict: VoiceprintVerdict }

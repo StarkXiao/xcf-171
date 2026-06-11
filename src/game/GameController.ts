@@ -1,4 +1,4 @@
-import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
 import { MapRenderer } from './MapRenderer';
@@ -7,6 +7,7 @@ import { TargetGenerator } from './TargetGenerator';
 import { ScoreSystem, type ScoreEvent } from './ScoreSystem';
 import { CollectionSystem } from './CollectionSystem';
 import { SalvageEventSystem } from './SalvageEventSystem';
+import { OceanEventSystem } from './OceanEventSystem';
 import * as PIXI from 'pixi.js';
 
 export class GameController {
@@ -16,6 +17,7 @@ export class GameController {
   private scoreSystem: ScoreSystem;
   private collection: CollectionSystem;
   private salvageEvent: SalvageEventSystem | null;
+  private oceanEventSystem: OceanEventSystem;
 
   private targets: Target[] = [];
   private playerPosition: Position;
@@ -32,6 +34,9 @@ export class GameController {
   private onGameOver?: (finalScore: number) => void;
   private onLevelUp?: (newLevel: number) => void;
   private onUnlock?: (event: UnlockEvent) => void;
+  private onOceanEventSpawned?: (event: OceanEvent) => void;
+  private onOceanEventExpired?: (event: OceanEvent) => void;
+  private onTreasureCollected?: (event: OceanEvent, points: number) => void;
 
   constructor(container: HTMLElement, collectionSystem?: CollectionSystem, salvageSystem?: SalvageEventSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
@@ -48,6 +53,10 @@ export class GameController {
       scoreMul: this.currentEffects.scoreMul,
     });
     this.collection = collectionSystem ?? new CollectionSystem();
+    this.oceanEventSystem = new OceanEventSystem({
+      mapWidth: GAME_CONFIG.MAP_WIDTH,
+      mapHeight: GAME_CONFIG.MAP_HEIGHT,
+    });
 
     this.playerPosition = {
       x: GAME_CONFIG.MAP_WIDTH / 2,
@@ -55,6 +64,15 @@ export class GameController {
     };
 
     this.sonar.setEchoCallback(() => {});
+    this.setupOceanEventCallbacks();
+  }
+
+  private setupOceanEventCallbacks() {
+    this.oceanEventSystem.setCallbacks(
+      (event) => this.onOceanEventSpawned?.(event),
+      (event) => this.onOceanEventExpired?.(event),
+      (event, points) => this.onTreasureCollected?.(event, points)
+    );
   }
 
   setLoadout(loadout: ExpeditionLoadout) {
@@ -63,6 +81,7 @@ export class GameController {
 
     this.renderer.setMapSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
     this.targetGenerator.setSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
+    this.oceanEventSystem.setMapSize(GAME_CONFIG.MAP_WIDTH, this.currentEffects.mapHeight);
     
     const wreckMultiplier = (this.salvageEvent?.getEventWreckMultiplier() ?? 1);
     this.targetGenerator.setMultipliers({
@@ -95,13 +114,19 @@ export class GameController {
     onScoreEvent: (event: ScoreEvent) => void,
     onGameOver: (finalScore: number) => void,
     onLevelUp: (newLevel: number) => void,
-    onUnlock?: (event: UnlockEvent) => void
+    onUnlock?: (event: UnlockEvent) => void,
+    onOceanEventSpawned?: (event: OceanEvent) => void,
+    onOceanEventExpired?: (event: OceanEvent) => void,
+    onTreasureCollected?: (event: OceanEvent, points: number) => void
   ) {
     this.onStateChange = onStateChange;
     this.onScoreEvent = onScoreEvent;
     this.onGameOver = onGameOver;
     this.onLevelUp = onLevelUp;
     this.onUnlock = onUnlock;
+    this.onOceanEventSpawned = onOceanEventSpawned;
+    this.onOceanEventExpired = onOceanEventExpired;
+    this.onTreasureCollected = onTreasureCollected;
 
     this.scoreSystem.setStateCallbacks(
       (state) => this.onStateChange?.(state),
@@ -117,6 +142,9 @@ export class GameController {
     this.scoreSystem.startGame(this.targets.length);
     this.renderer.clearDiscovered();
     this.sonar.clear();
+    this.oceanEventSystem.clear();
+    this.oceanEventSystem.setLevel(state.level);
+    this.oceanEventSystem.start();
     this.collection.resetSessionUnlocks();
     this.collectedCount = 0;
     this.collectedCreaturesAndWrecks = 0;
@@ -204,6 +232,8 @@ export class GameController {
   private update(delta: number) {
     this.renderer.updateParticles(delta);
 
+    this.oceanEventSystem.update(delta, this.playerPosition);
+
     const { discoveredTargetIds } = this.sonar.update(delta, this.targets);
     for (const _id of discoveredTargetIds) {
       this.scoreSystem.discoverTarget();
@@ -212,13 +242,29 @@ export class GameController {
     this.renderer.updateCamera(this.playerPosition.y);
 
     const now = Date.now();
-    if (now - this.lastRechargeTime >= GAME_CONFIG.SONAR.RECHARGE_TIME) {
+    const rechargeModifier = this.getSonarRechargeModifier();
+    const adjustedRechargeTime = GAME_CONFIG.SONAR.RECHARGE_TIME / rechargeModifier;
+    if (now - this.lastRechargeTime >= adjustedRechargeTime) {
       this.scoreSystem.rechargeSonar();
       this.lastRechargeTime = now;
     }
   }
 
+  private getSonarRechargeModifier(): number {
+    let modifier = 1;
+    const currentEvent = this.oceanEventSystem.isPositionInEvent(this.playerPosition, 'current');
+    if (currentEvent) {
+      modifier *= 1.3;
+    }
+    const interferenceEvent = this.oceanEventSystem.isPositionInEvent(this.playerPosition, 'interference');
+    if (interferenceEvent) {
+      modifier *= 0.7;
+    }
+    return modifier;
+  }
+
   private render() {
+    this.renderer.renderOceanEvents(this.oceanEventSystem.getActiveEvents());
     this.renderer.drawPlayer(this.playerPosition);
     this.renderer.renderWaves(this.sonar.getWaves());
     this.renderer.renderEchos(this.sonar.getEchoPoints());
@@ -229,8 +275,20 @@ export class GameController {
     if (!this.scoreSystem.useSonar()) return false;
 
     const worldPos = { ...position };
+    const radiusModifier = this.oceanEventSystem.getSonarRadiusModifier(worldPos);
+    const speedModifier = this.oceanEventSystem.getSonarSpeedModifier(worldPos);
+    
+    const baseRadius = this.currentEffects.sonarRadius;
+    const baseSpeed = this.currentEffects.sonarSpeed;
+    
+    this.sonar.setParams(
+      baseRadius * radiusModifier,
+      baseSpeed * speedModifier,
+      this.currentEffects.precisionBonus
+    );
+    
     this.sonar.emitSonar(worldPos);
-    this.renderer.addDiscoveredArea(worldPos, this.currentEffects.sonarRadius);
+    this.renderer.addDiscoveredArea(worldPos, baseRadius * radiusModifier);
     return true;
   }
 
@@ -241,6 +299,14 @@ export class GameController {
   }
 
   handleTap(worldPos: Position): { hit: boolean; target?: Target } {
+    const treasureEvent = this.oceanEventSystem.tryCollectTreasure(worldPos);
+    if (treasureEvent) {
+      const treasurePoints = treasureEvent.effectValue * 3;
+      this.scoreSystem.addBonus(treasurePoints, treasureEvent.name);
+      this.onTreasureCollected?.(treasureEvent, treasurePoints);
+      return { hit: true };
+    }
+
     for (const target of this.targets) {
       if (target.collected) continue;
 
@@ -255,15 +321,22 @@ export class GameController {
           this.collectedCreaturesAndWrecks++;
         }
 
+        const scoreModifier = this.getScoreModifier(target.position);
+        let adjustedPoints = target.points;
+        if (target.type !== 'danger') {
+          adjustedPoints = Math.round(target.points * scoreModifier);
+          target.points = adjustedPoints;
+        }
+
         const alive = this.scoreSystem.collectTarget(target);
 
         const eventWreck = this.eventWreckMap.get(target.id);
         if (eventWreck && this.salvageEvent) {
-          this.salvageEvent.recordWreckCollected(eventWreck, target.points);
+          this.salvageEvent.recordWreckCollected(eventWreck, adjustedPoints);
         }
 
         const state = this.scoreSystem.getState();
-        const unlockEvent = this.collection.recordTarget(target, state.level, target.points);
+        const unlockEvent = this.collection.recordTarget(target, state.level, adjustedPoints);
         if (unlockEvent) {
           this.onUnlock?.(unlockEvent);
         }
@@ -273,12 +346,14 @@ export class GameController {
           const newTargets = this.targetGenerator.generateTargets(state.level);
           this.targets.push(...newTargets);
           this.injectEventWrecks(state.level);
+          this.oceanEventSystem.setLevel(state.level);
           this.onLevelUp?.(state.level);
         }
 
         if (!alive) {
           this.scoreSystem.endGame();
           this.salvageEvent?.recordExpeditionCompleted();
+          this.oceanEventSystem.stop();
           this.onGameOver?.(this.scoreSystem.getFinalScore());
         }
 
@@ -286,6 +361,15 @@ export class GameController {
       }
     }
     return { hit: false };
+  }
+
+  private getScoreModifier(position: Position): number {
+    let modifier = 1;
+    const treasureEvent = this.oceanEventSystem.isPositionInEvent(position, 'treasure');
+    if (treasureEvent) {
+      modifier *= 1.2;
+    }
+    return modifier;
   }
 
   getState(): GameState {
@@ -302,6 +386,10 @@ export class GameController {
 
   getSalvageEventSystem(): SalvageEventSystem | null {
     return this.salvageEvent;
+  }
+
+  getOceanEventSystem(): OceanEventSystem {
+    return this.oceanEventSystem;
   }
 
   getSessionUnlocks() {

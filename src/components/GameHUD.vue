@@ -27,6 +27,44 @@
       </div>
     </div>
 
+    <div class="event-notifications" v-if="activeNotifications.length > 0">
+      <div
+        v-for="notification in activeNotifications"
+        :key="notification.id"
+        class="event-notification"
+        :class="notification.type"
+      >
+        <span class="event-icon">{{ notification.icon }}</span>
+        <div class="event-info">
+          <div class="event-title">{{ notification.title }}</div>
+          <div class="event-desc">{{ notification.description }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="active-events" v-if="activeEvents && activeEvents.length > 0">
+      <div class="active-events-label">海域事件</div>
+      <div class="active-events-list">
+        <div
+          v-for="event in activeEvents"
+          :key="event.id"
+          class="active-event-item"
+          :class="event.type"
+        >
+          <span class="active-event-icon">{{ event.icon }}</span>
+          <div class="active-event-info">
+            <span class="active-event-name">{{ event.name }}</span>
+            <div class="active-event-timer">
+              <div
+                class="timer-fill"
+                :style="{ width: (event.remainingTime / event.duration * 100) + '%' }"
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="hud-bottom">
       <div class="sonar-bar">
         <div class="sonar-label">声呐能量</div>
@@ -62,15 +100,63 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { GameState } from '../types/game';
+import { computed, ref, watch } from 'vue';
+import type { GameState, OceanEvent } from '../types/game';
+import { getEventColor } from '../config/oceanEvents';
 
 const props = defineProps<{
   state: GameState;
   showHint: boolean;
   isDailyChallenge?: boolean;
   dailyChallengeTitle?: string;
+  activeEvents?: OceanEvent[];
 }>();
+
+interface EventNotification {
+  id: number;
+  type: string;
+  icon: string;
+  title: string;
+  description: string;
+  timestamp: number;
+}
+
+const activeNotifications = ref<EventNotification[]>([]);
+let notificationId = 0;
+
+const addNotification = (event: OceanEvent, isSpawn: boolean) => {
+  const notification: EventNotification = {
+    id: notificationId++,
+    type: event.type,
+    icon: event.icon,
+    title: isSpawn ? `${event.name} 出现！` : `${event.name} 消散了`,
+    description: isSpawn ? event.description : '海域恢复平静',
+    timestamp: Date.now(),
+  };
+  activeNotifications.value.push(notification);
+  
+  setTimeout(() => {
+    activeNotifications.value = activeNotifications.value.filter(n => n.id !== notification.id);
+  }, 3000);
+};
+
+const previousEventIds = ref<Set<number>>(new Set());
+
+watch(
+  () => props.activeEvents || [],
+  (newEvents) => {
+    const newIds = new Set(newEvents.map(e => e.id));
+    
+    for (const event of newEvents) {
+      if (!previousEventIds.value.has(event.id)) {
+        addNotification(event, true);
+      }
+    }
+    
+    previousEventIds.value = newIds;
+  },
+  { deep: true, immediate: true }
+);
 
 const progressPercent = computed(() => {
   if (props.state.totalTargets === 0) return 0;
@@ -84,6 +170,10 @@ const minLivesForDisplay = computed(() => {
 const formatNumber = (n: number) => {
   return n.toLocaleString();
 };
+
+defineExpose({
+  addNotification,
+});
 </script>
 
 <style scoped>
@@ -291,5 +381,170 @@ const formatNumber = (n: number) => {
 @keyframes hint-float {
   0%, 100% { transform: translateX(-50%) translateY(0); }
   50% { transform: translateX(-50%) translateY(-4px); }
+}
+
+.event-notifications {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+}
+
+.event-notification {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  animation: notification-slide-in 0.4s ease-out;
+  min-width: 220px;
+}
+
+.event-notification.current {
+  background: linear-gradient(135deg, rgba(0, 100, 180, 0.9), rgba(0, 60, 120, 0.95));
+  border: 1px solid rgba(0, 170, 255, 0.6);
+  box-shadow: 0 0 20px rgba(0, 170, 255, 0.3);
+}
+
+.event-notification.interference {
+  background: linear-gradient(135deg, rgba(120, 50, 160, 0.9), rgba(80, 30, 120, 0.95));
+  border: 1px solid rgba(170, 80, 255, 0.6);
+  box-shadow: 0 0 20px rgba(170, 80, 255, 0.3);
+}
+
+.event-notification.treasure {
+  background: linear-gradient(135deg, rgba(200, 160, 0, 0.9), rgba(150, 120, 0, 0.95));
+  border: 1px solid rgba(255, 220, 0, 0.7);
+  box-shadow: 0 0 25px rgba(255, 220, 0, 0.4);
+}
+
+.event-icon {
+  font-size: 24px;
+}
+
+.event-info {
+  flex: 1;
+}
+
+.event-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.event-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+@keyframes notification-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.active-events {
+  position: absolute;
+  top: 80px;
+  right: 12px;
+  width: 160px;
+  background: linear-gradient(135deg, rgba(0, 40, 60, 0.85), rgba(0, 20, 40, 0.9));
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  border-radius: 10px;
+  padding: 8px 10px;
+  backdrop-filter: blur(8px);
+}
+
+.active-events-label {
+  font-size: 10px;
+  color: rgba(0, 255, 200, 0.7);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.active-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.active-event-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.active-event-item.current {
+  background: rgba(0, 170, 255, 0.15);
+}
+
+.active-event-item.interference {
+  background: rgba(170, 80, 255, 0.15);
+}
+
+.active-event-item.treasure {
+  background: rgba(255, 220, 0, 0.15);
+}
+
+.active-event-icon {
+  font-size: 16px;
+}
+
+.active-event-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.active-event-name {
+  font-size: 11px;
+  color: #fff;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.active-event-timer {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  margin-top: 3px;
+  overflow: hidden;
+}
+
+.active-event-item.current .timer-fill {
+  height: 100%;
+  background: #00aaff;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.active-event-item.interference .timer-fill {
+  height: 100%;
+  background: #aa50ff;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.active-event-item.treasure .timer-fill {
+  height: 100%;
+  background: #ffdd00;
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 </style>

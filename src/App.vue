@@ -8,6 +8,7 @@
       v-if="gameState.isPlaying && !gameState.isGameOver && !isRelayMode"
       :state="gameState"
       :show-hint="showHint"
+      :active-events="activeOceanEvents"
     />
 
     <RelayGameHUD
@@ -98,7 +99,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -143,6 +144,8 @@ const salvageEventState = ref<SalvageEventState | null>(null);
 const showVoiceprintLab = ref(false);
 const voiceprintHighScore = ref(0);
 const lastVoiceprintVerdict = ref<VoiceprintVerdict | null>(null);
+
+const activeOceanEvents = ref<OceanEvent[]>([]);
 
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
@@ -277,6 +280,34 @@ const handleGameOver = (finalScore: number) => {
 };
 
 const handleLevelUp = (_newLevel: number) => {};
+
+const handleOceanEventSpawned = (event: OceanEvent) => {
+  refreshOceanEvents();
+};
+
+const handleOceanEventExpired = (event: OceanEvent) => {
+  refreshOceanEvents();
+};
+
+const handleTreasureCollected = (event: OceanEvent, points: number) => {
+  refreshOceanEvents();
+  if (floatingScoreRef.value && containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    floatingScoreRef.value.addScore(
+      points,
+      event.name,
+      'collect',
+      rect.width / 2,
+      rect.height / 2
+    );
+  }
+};
+
+const refreshOceanEvents = () => {
+  if (gameController) {
+    activeOceanEvents.value = gameController.getOceanEventSystem().getActiveEvents();
+  }
+};
 
 const updateRelayState = (state: RelayGameState) => {
   Object.assign(relayGameState, state);
@@ -603,7 +634,10 @@ onMounted(() => {
       handleScoreEvent,
       handleGameOver,
       handleLevelUp,
-      handleUnlockEvent
+      handleUnlockEvent,
+      handleOceanEventSpawned,
+      handleOceanEventExpired,
+      handleTreasureCollected
     );
   }
 
@@ -611,6 +645,13 @@ onMounted(() => {
     refreshSalvageEventState();
   }, 1000);
   (window as any).__salvageTimer = salvageTimer;
+
+  const oceanEventTimer = window.setInterval(() => {
+    if (gameState.isPlaying && !gameState.isPaused) {
+      refreshOceanEvents();
+    }
+  }, 500);
+  (window as any).__oceanEventTimer = oceanEventTimer;
 });
 
 onUnmounted(() => {
@@ -620,6 +661,10 @@ onUnmounted(() => {
   const salvageTimer = (window as any).__salvageTimer;
   if (salvageTimer) {
     clearInterval(salvageTimer);
+  }
+  const oceanEventTimer = (window as any).__oceanEventTimer;
+  if (oceanEventTimer) {
+    clearInterval(oceanEventTimer);
   }
 });
 </script>

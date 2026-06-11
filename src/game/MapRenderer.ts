@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import type { Target, SonarWave, EchoPoint, Position, DangerZone } from '../types/game';
+import type { Target, SonarWave, EchoPoint, Position, DangerZone, OceanEvent } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 
 export class MapRenderer {
@@ -13,6 +13,7 @@ export class MapRenderer {
   private gridContainer: PIXI.Container;
   private particleContainer: PIXI.Container;
   private dangerZoneContainer: PIXI.Container;
+  private oceanEventContainer: PIXI.Container;
 
   private width: number;
   private height: number;
@@ -49,11 +50,13 @@ export class MapRenderer {
     this.waveContainer = new PIXI.Container();
     this.particleContainer = new PIXI.Container();
     this.dangerZoneContainer = new PIXI.Container();
+    this.oceanEventContainer = new PIXI.Container();
 
     this.container.addChild(this.mapContainer);
     this.mapContainer.addChild(this.gridContainer);
     this.mapContainer.addChild(this.fogContainer);
     this.mapContainer.addChild(this.dangerZoneContainer);
+    this.mapContainer.addChild(this.oceanEventContainer);
     this.mapContainer.addChild(this.targetContainer);
     this.mapContainer.addChild(this.echoContainer);
     this.mapContainer.addChild(this.waveContainer);
@@ -539,5 +542,232 @@ export class MapRenderer {
       case 'toxic': return 0x66dd33;
       default: return 0xff3355;
     }
+  }
+
+  public renderOceanEvents(events: OceanEvent[]) {
+    this.oceanEventContainer.removeChildren();
+    if (!events || events.length === 0) return;
+
+    const now = Date.now() / 1000;
+
+    for (const event of events) {
+      if (!event.active) continue;
+
+      const eventGroup = new PIXI.Container();
+      const pulse = 0.5 + Math.sin(now * 1.5 + event.id) * 0.3;
+
+      if (event.type === 'current') {
+        this.drawCurrentEvent(eventGroup, event, pulse);
+      } else if (event.type === 'interference') {
+        this.drawInterferenceEvent(eventGroup, event, pulse);
+      } else if (event.type === 'treasure') {
+        this.drawTreasureEvent(eventGroup, event, pulse);
+      }
+
+      this.oceanEventContainer.addChild(eventGroup);
+    }
+  }
+
+  private drawCurrentEvent(container: PIXI.Container, event: OceanEvent, pulse: number) {
+    const color = event.color;
+    const { x, y } = event.position;
+
+    const outerGlow = new PIXI.Graphics();
+    outerGlow.beginFill(color, 0.08 + pulse * 0.04);
+    outerGlow.drawCircle(x, y, event.radius * 1.4);
+    outerGlow.endFill();
+    container.addChild(outerGlow);
+
+    const mainFill = new PIXI.Graphics();
+    mainFill.beginFill(color, 0.12);
+    mainFill.drawCircle(x, y, event.radius);
+    mainFill.endFill();
+    container.addChild(mainFill);
+
+    const ringCount = 3;
+    for (let i = 0; i < ringCount; i++) {
+      const ring = new PIXI.Graphics();
+      const ringProgress = ((Date.now() / 1000 + i * 0.3) % 1);
+      const ringRadius = event.radius * 0.3 + ringProgress * event.radius * 0.7;
+      const ringAlpha = (1 - ringProgress) * 0.6;
+      
+      ring.lineStyle(2, color, ringAlpha);
+      ring.drawCircle(x, y, ringRadius);
+      container.addChild(ring);
+    }
+
+    const innerRing = new PIXI.Graphics();
+    this.drawDashedCircle(innerRing, x, y, event.radius, color, 0.4 + pulse * 0.2, 10, 8);
+    container.addChild(innerRing);
+
+    const directionLines = new PIXI.Graphics();
+    directionLines.lineStyle(2, color, 0.6);
+    const arrowCount = 6;
+    for (let i = 0; i < arrowCount; i++) {
+      const angle = (i / arrowCount) * Math.PI * 2 + Date.now() / 2000;
+      const innerR = event.radius * 0.5;
+      const outerR = event.radius * 0.75;
+      
+      const startX = x + Math.cos(angle) * innerR;
+      const startY = y + Math.sin(angle) * innerR;
+      const endX = x + Math.cos(angle) * outerR;
+      const endY = y + Math.sin(angle) * outerR;
+      
+      directionLines.moveTo(startX, startY);
+      directionLines.lineTo(endX, endY);
+      
+      const arrowSize = 8;
+      const arrowAngle1 = angle + Math.PI * 0.75;
+      const arrowAngle2 = angle - Math.PI * 0.75;
+      directionLines.moveTo(endX, endY);
+      directionLines.lineTo(endX + Math.cos(arrowAngle1) * arrowSize, endY + Math.sin(arrowAngle1) * arrowSize);
+      directionLines.moveTo(endX, endY);
+      directionLines.lineTo(endX + Math.cos(arrowAngle2) * arrowSize, endY + Math.sin(arrowAngle2) * arrowSize);
+    }
+    container.addChild(directionLines);
+
+    const iconText = new PIXI.Text(event.icon, {
+      fontSize: 20,
+      align: 'center',
+    });
+    iconText.anchor.set(0.5, 0.5);
+    iconText.x = x;
+    iconText.y = y;
+    container.addChild(iconText);
+  }
+
+  private drawInterferenceEvent(container: PIXI.Container, event: OceanEvent, pulse: number) {
+    const color = event.color;
+    const { x, y } = event.position;
+
+    const outerGlow = new PIXI.Graphics();
+    outerGlow.beginFill(color, 0.06 + pulse * 0.03);
+    outerGlow.drawCircle(x, y, event.radius * 1.3);
+    outerGlow.endFill();
+    container.addChild(outerGlow);
+
+    const mainFill = new PIXI.Graphics();
+    mainFill.beginFill(color, 0.15);
+    mainFill.drawCircle(x, y, event.radius);
+    mainFill.endFill();
+    container.addChild(mainFill);
+
+    const noiseCount = 8;
+    const noise = new PIXI.Graphics();
+    noise.lineStyle(1, color, 0.5);
+    for (let i = 0; i < noiseCount; i++) {
+      const angle1 = Math.random() * Math.PI * 2;
+      const angle2 = Math.random() * Math.PI * 2;
+      const r1 = Math.random() * event.radius * 0.9;
+      const r2 = Math.random() * event.radius * 0.9;
+      noise.moveTo(x + Math.cos(angle1) * r1, y + Math.sin(angle1) * r1);
+      noise.lineTo(x + Math.cos(angle2) * r2, y + Math.sin(angle2) * r2);
+    }
+    container.addChild(noise);
+
+    const jaggedRing = new PIXI.Graphics();
+    jaggedRing.lineStyle(2, color, 0.5 + pulse * 0.3);
+    const segments = 20;
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const jaggedR = event.radius * (0.85 + Math.sin(i * 3 + Date.now() / 500) * 0.15);
+      const px = x + Math.cos(angle) * jaggedR;
+      const py = y + Math.sin(angle) * jaggedR;
+      if (i === 0) jaggedRing.moveTo(px, py);
+      else jaggedRing.lineTo(px, py);
+    }
+    container.addChild(jaggedRing);
+
+    const warningRays = new PIXI.Graphics();
+    warningRays.lineStyle(1, color, 0.3);
+    const rayCount = 4;
+    for (let i = 0; i < rayCount; i++) {
+      const angle = (i / rayCount) * Math.PI * 2 + Date.now() / 1500;
+      const innerR = event.radius * 0.2;
+      const outerR = event.radius * 0.95;
+      warningRays.moveTo(x + Math.cos(angle) * innerR, y + Math.sin(angle) * innerR);
+      warningRays.lineTo(x + Math.cos(angle) * outerR, y + Math.sin(angle) * outerR);
+    }
+    container.addChild(warningRays);
+
+    const iconText = new PIXI.Text(event.icon, {
+      fontSize: 18,
+      align: 'center',
+    });
+    iconText.anchor.set(0.5, 0.5);
+    iconText.x = x;
+    iconText.y = y;
+    container.addChild(iconText);
+  }
+
+  private drawTreasureEvent(container: PIXI.Container, event: OceanEvent, pulse: number) {
+    const color = event.color;
+    const { x, y } = event.position;
+
+    const outerGlow = new PIXI.Graphics();
+    outerGlow.beginFill(color, 0.1 + pulse * 0.08);
+    outerGlow.drawCircle(x, y, event.radius * 2.5);
+    outerGlow.endFill();
+    container.addChild(outerGlow);
+
+    const midGlow = new PIXI.Graphics();
+    midGlow.beginFill(color, 0.15 + pulse * 0.1);
+    midGlow.drawCircle(x, y, event.radius * 1.8);
+    midGlow.endFill();
+    container.addChild(midGlow);
+
+    const innerGlow = new PIXI.Graphics();
+    innerGlow.beginFill(color, 0.25);
+    innerGlow.drawCircle(x, y, event.radius * 1.2);
+    innerGlow.endFill();
+    container.addChild(innerGlow);
+
+    const sparkles = new PIXI.Graphics();
+    const sparkleCount = 12;
+    for (let i = 0; i < sparkleCount; i++) {
+      const angle = (i / sparkleCount) * Math.PI * 2 + Date.now() / 1000;
+      const dist = event.radius * (0.8 + Math.sin(i * 2.5 + Date.now() / 300) * 0.4);
+      const sx = x + Math.cos(angle) * dist;
+      const sy = y + Math.sin(angle) * dist;
+      const size = 2 + Math.sin(i * 1.7 + Date.now() / 200) * 1.5;
+      
+      sparkles.beginFill(color, 0.7 + pulse * 0.3);
+      sparkles.drawCircle(sx, sy, size);
+      sparkles.endFill();
+    }
+    container.addChild(sparkles);
+
+    const ring = new PIXI.Graphics();
+    ring.lineStyle(3, color, 0.7 + pulse * 0.3);
+    ring.drawCircle(x, y, event.radius);
+    container.addChild(ring);
+
+    const innerRing = new PIXI.Graphics();
+    innerRing.lineStyle(1, color, 0.5);
+    innerRing.drawCircle(x, y, event.radius * 0.6);
+    container.addChild(innerRing);
+
+    const iconText = new PIXI.Text(event.icon, {
+      fontSize: 28,
+      align: 'center',
+    });
+    iconText.anchor.set(0.5, 0.5);
+    iconText.x = x;
+    iconText.y = y;
+    iconText.scale.set(1 + pulse * 0.15);
+    container.addChild(iconText);
+
+    const nameText = new PIXI.Text(event.name, {
+      fontSize: 10,
+      fontFamily: 'monospace',
+      fill: color,
+      align: 'center',
+      fontWeight: 'bold',
+    });
+    nameText.anchor.set(0.5, 0.5);
+    nameText.x = x;
+    nameText.y = y + event.radius * 0.9;
+    nameText.alpha = 0.9;
+    container.addChild(nameText);
   }
 }
