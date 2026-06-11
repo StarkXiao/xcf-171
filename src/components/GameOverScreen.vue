@@ -27,6 +27,31 @@
         </div>
       </div>
 
+      <div v-if="maxCombo && maxCombo > 0" class="combo-stats-section">
+        <div class="combo-stats-title">
+          <span class="combo-stats-icon">⚡</span>
+          <span>连击统计</span>
+        </div>
+        <div class="combo-stats-row">
+          <div class="combo-stat-item">
+            <div class="combo-stat-value combo">{{ maxCombo }}</div>
+            <div class="combo-stat-label">最高连击</div>
+          </div>
+          <div class="combo-stat-item">
+            <div class="combo-stat-value sonar">{{ maxSonarCombo || 0 }}</div>
+            <div class="combo-stat-label">最高连探</div>
+          </div>
+          <div class="combo-stat-item">
+            <div class="combo-stat-value points">+{{ formatNumber(comboBonusPoints || 0) }}</div>
+            <div class="combo-stat-label">连击奖励</div>
+          </div>
+          <div class="combo-stat-item">
+            <div class="combo-stat-value charges">+{{ comboSonarCharges || 0 }}</div>
+            <div class="combo-stat-label">额外充能</div>
+          </div>
+        </div>
+      </div>
+
       <div v-if="isDailyChallenge" class="daily-info">
         <div class="daily-header">
           <span class="daily-icon">🎯</span>
@@ -180,6 +205,10 @@ const props = defineProps<{
   expeditionReward?: ExpeditionReward | null;
   totalExpeditionPoints?: number;
   missionResult?: MissionResult | null;
+  maxCombo?: number;
+  maxSonarCombo?: number;
+  comboBonusPoints?: number;
+  comboSonarCharges?: number;
 }>();
 
 defineEmits<{
@@ -195,8 +224,17 @@ const effectiveScore = computed(() => {
   return props.score + (props.missionResult?.ratingBonus ?? 0);
 });
 
+const comboBonusForRank = computed(() => {
+  const maxCombo = props.maxCombo ?? 0;
+  if (maxCombo >= 20) return 300;
+  if (maxCombo >= 15) return 200;
+  if (maxCombo >= 10) return 100;
+  if (maxCombo >= 5) return 50;
+  return 0;
+});
+
 const rank = computed(() => {
-  const s = effectiveScore.value;
+  const s = effectiveScore.value + comboBonusForRank.value;
   if (s >= 3000) return 'S';
   if (s >= 2000) return 'A';
   if (s >= 1000) return 'B';
@@ -654,6 +692,77 @@ const formatNumber = (n: number | undefined | null) => (n ?? 0).toLocaleString()
 .home-btn:hover {
   background: rgba(0, 255, 170, 0.1);
   border-color: rgba(0, 255, 170, 0.5);
+}
+
+.combo-stats-section {
+  margin-bottom: 18px;
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.1), rgba(0, 170, 255, 0.1));
+  border: 1px solid rgba(255, 204, 0, 0.35);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.combo-stats-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 204, 0, 0.95);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.combo-stats-icon {
+  font-size: 18px;
+}
+
+.combo-stats-row {
+  display: flex;
+  gap: 8px;
+}
+
+.combo-stat-item {
+  flex: 1;
+  text-align: center;
+  background: rgba(0, 30, 50, 0.5);
+  border-radius: 8px;
+  padding: 8px 4px;
+  border: 1px solid rgba(0, 255, 170, 0.15);
+}
+
+.combo-stat-value {
+  font-size: 20px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  margin-bottom: 2px;
+}
+
+.combo-stat-value.combo {
+  color: #ffcc00;
+  text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+}
+
+.combo-stat-value.sonar {
+  color: #00aaff;
+  text-shadow: 0 0 10px rgba(0, 170, 255, 0.5);
+}
+
+.combo-stat-value.points {
+  color: #00ffcc;
+  text-shadow: 0 0 10px rgba(0, 255, 200, 0.5);
+}
+
+.combo-stat-value.charges {
+  color: #ff8844;
+  text-shadow: 0 0 10px rgba(255, 136, 68, 0.5);
+}
+
+.combo-stat-label {
+  font-size: 9px;
+  color: rgba(200, 200, 220, 0.5);
+  letter-spacing: 1px;
 }
 
 .daily-info {

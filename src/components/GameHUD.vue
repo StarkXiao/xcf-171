@@ -141,6 +141,17 @@
       </div>
     </div>
 
+    <div class="combo-display" v-if="state.combo > 0 || state.sonarCombo > 0">
+      <div class="combo-item collect-combo" v-if="state.combo >= 2">
+        <div class="combo-count">{{ state.combo }} 连击!</div>
+        <div class="combo-multiplier">×{{ state.comboMultiplier.toFixed(1) }}</div>
+      </div>
+      <div class="combo-item sonar-combo" v-if="state.sonarCombo >= 2">
+        <div class="combo-count">{{ state.sonarCombo }} 连探!</div>
+        <div class="combo-multiplier">×{{ sonarMultiplier.toFixed(1) }}</div>
+      </div>
+    </div>
+
     <div class="hud-bottom">
       <div class="sonar-bar">
         <div class="sonar-label">声呐能量</div>
@@ -288,6 +299,23 @@ const missionProgressPercent = (m: Mission) => {
 const progressPercent = computed(() => {
   if (props.state.totalTargets === 0) return 0;
   return (props.state.discoveredTargets / props.state.totalTargets) * 100;
+});
+
+const sonarMultiplier = computed(() => {
+  const combo = props.state.sonarCombo;
+  let multiplier = 1.0;
+  const multipliers = [
+    { combo: 2, multiplier: 1.1 },
+    { combo: 4, multiplier: 1.2 },
+    { combo: 6, multiplier: 1.3 },
+    { combo: 8, multiplier: 1.5 },
+  ];
+  for (const m of multipliers) {
+    if (combo >= m.combo) {
+      multiplier = m.multiplier;
+    }
+  }
+  return multiplier;
 });
 
 const minLivesForDisplay = computed(() => {
@@ -894,6 +922,96 @@ defineExpose({
   100% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+.combo-display {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.combo-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  animation: combo-pop-in 0.4s ease-out;
+}
+
+.combo-item.collect-combo {
+  background: linear-gradient(135deg, rgba(255, 204, 0, 0.25), rgba(255, 136, 0, 0.25));
+  border: 2px solid rgba(255, 204, 0, 0.6);
+  box-shadow: 0 0 25px rgba(255, 204, 0, 0.4), inset 0 0 15px rgba(255, 204, 0, 0.15);
+}
+
+.combo-item.sonar-combo {
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.25), rgba(0, 100, 200, 0.25));
+  border: 2px solid rgba(0, 170, 255, 0.6);
+  box-shadow: 0 0 25px rgba(0, 170, 255, 0.4), inset 0 0 15px rgba(0, 170, 255, 0.15);
+}
+
+.combo-count {
+  font-size: 28px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 15px currentColor, 0 2px 4px rgba(0, 0, 0, 0.8);
+  letter-spacing: 2px;
+  animation: combo-pulse 0.6s ease-in-out infinite;
+}
+
+.collect-combo .combo-count {
+  color: #ffcc00;
+}
+
+.sonar-combo .combo-count {
+  color: #00aaff;
+}
+
+.combo-multiplier {
+  font-size: 16px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  margin-top: 2px;
+  text-shadow: 0 0 8px currentColor;
+}
+
+.collect-combo .combo-multiplier {
+  color: rgba(255, 204, 0, 0.9);
+}
+
+.sonar-combo .combo-multiplier {
+  color: rgba(0, 170, 255, 0.9);
+}
+
+@keyframes combo-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-5deg);
+  }
+  60% {
+    transform: scale(1.1) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes combo-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
   }
 }
 </style>

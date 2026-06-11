@@ -1,4 +1,4 @@
-import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect, ComboEvent } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { OCEAN_EVENT_CONFIG } from '../config/oceanEvents';
 import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
@@ -43,6 +43,7 @@ export class GameController {
   private onMissionCompleted?: (mission: Mission) => void;
   private onMissionProgress?: (mission: Mission) => void;
   private onMissionEffectsChanged?: (effects: MissionEffect[]) => void;
+  private onComboEvent?: (event: ComboEvent) => void;
 
   constructor(container: HTMLElement, collectionSystem?: CollectionSystem, salvageSystem?: SalvageEventSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
@@ -273,7 +274,8 @@ export class GameController {
     onTreasureCollected?: (event: OceanEvent, points: number) => void,
     onMissionCompleted?: (mission: Mission) => void,
     onMissionProgress?: (mission: Mission) => void,
-    onMissionEffectsChanged?: (effects: MissionEffect[]) => void
+    onMissionEffectsChanged?: (effects: MissionEffect[]) => void,
+    onComboEvent?: (event: ComboEvent) => void
   ) {
     this.onStateChange = onStateChange;
     this.onScoreEvent = onScoreEvent;
@@ -286,10 +288,12 @@ export class GameController {
     this.onMissionCompleted = onMissionCompleted;
     this.onMissionProgress = onMissionProgress;
     this.onMissionEffectsChanged = onMissionEffectsChanged;
+    this.onComboEvent = onComboEvent;
 
     this.scoreSystem.setStateCallbacks(
       (state) => this.onStateChange?.(state),
-      (event) => this.onScoreEvent?.(event)
+      (event) => this.onScoreEvent?.(event),
+      (event) => this.onComboEvent?.(event)
     );
 
     this.missionSystem.setCallbacks(
@@ -408,9 +412,10 @@ export class GameController {
 
     this.oceanEventSystem.update(delta, this.playerPosition);
 
-    const { discoveredTargetIds } = this.sonar.update(delta, this.targets);
-    for (const _id of discoveredTargetIds) {
-      this.scoreSystem.discoverTarget();
+    const { discoveredTargetIds, discoveredPositions } = this.sonar.update(delta, this.targets);
+    for (let i = 0; i < discoveredTargetIds.length; i++) {
+      const position = discoveredPositions[i] || undefined;
+      this.scoreSystem.discoverTarget(position);
       this.missionSystem.onDiscoverTarget();
     }
 
@@ -584,6 +589,10 @@ export class GameController {
 
   getSessionUnlocks() {
     return this.collection.getSessionUnlocks();
+  }
+
+  getComboStats() {
+    return this.scoreSystem.getComboStats();
   }
 
   screenToWorld(screenX: number, screenY: number): Position {

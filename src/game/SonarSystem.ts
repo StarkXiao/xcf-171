@@ -55,9 +55,10 @@ export class SonarSystem {
     return true;
   }
 
-  update(delta: number, targets: Target[]): { echos: EchoPoint[]; discoveredTargetIds: number[] } {
+  update(delta: number, targets: Target[]): { echos: EchoPoint[]; discoveredTargetIds: number[]; discoveredPositions: Position[] } {
     const newEchos: EchoPoint[] = [];
     const discoveredIds: number[] = [];
+    const discoveredPositions: Position[] = [];
 
     for (const wave of this.waves) {
       if (!wave.active) continue;
@@ -85,6 +86,7 @@ export class SonarSystem {
           
           target.discovered = true;
           discoveredIds.push(target.id);
+          discoveredPositions.push({ ...target.position });
 
           const baseEchoCount = target.type === 'wreck' ? 3 : target.type === 'danger' ? 2 : 1;
           const rawEchoCount = baseEchoCount * this.echoCountMul;
@@ -132,7 +134,7 @@ export class SonarSystem {
       this.onEchoGenerated(newEchos);
     }
 
-    return { echos: this.echoPoints, discoveredTargetIds: discoveredIds };
+    return { echos: this.echoPoints, discoveredTargetIds: discoveredIds, discoveredPositions };
   }
 
   getWaves(): SonarWave[] {

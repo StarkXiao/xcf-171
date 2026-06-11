@@ -22,7 +22,7 @@ interface FloatingScore {
   id: number;
   value: number;
   label: string;
-  type: 'collect' | 'damage' | 'levelUp' | 'bonus';
+  type: 'collect' | 'damage' | 'levelUp' | 'bonus' | 'combo';
   x: number;
   y: number;
 }
@@ -30,7 +30,7 @@ interface FloatingScore {
 const floatingScores = ref<FloatingScore[]>([]);
 let nextId = 1;
 
-const addScore = (value: number, label: string, type: 'collect' | 'damage' | 'levelUp' | 'bonus', x: number, y: number) => {
+const addScore = (value: number, label: string, type: 'collect' | 'damage' | 'levelUp' | 'bonus' | 'combo', x: number, y: number) => {
   const id = nextId++;
   floatingScores.value.push({ id, value, label, type, x, y });
   setTimeout(() => {
@@ -57,6 +57,10 @@ defineExpose({ addScore });
   align-items: center;
   transform: translate(-50%, -50%);
   animation: float 1.5s ease-out forwards;
+}
+
+.floating-item.combo {
+  animation: combo-float 1.8s ease-out forwards;
 }
 
 .float-label {
@@ -89,6 +93,18 @@ defineExpose({ addScore });
   color: #00ffaa;
 }
 
+.floating-item.combo .float-value {
+  color: #ffcc00;
+  text-shadow: 0 0 15px currentColor, 0 0 30px currentColor, 0 2px 4px rgba(0, 0, 0, 0.8);
+  font-size: 24px;
+}
+
+.floating-item.combo .float-label {
+  color: #ffcc00;
+  font-weight: bold;
+  text-shadow: 0 0 8px rgba(255, 204, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
 .float-up-enter-active {
   animation: float 1.5s ease-out;
 }
@@ -112,6 +128,27 @@ defineExpose({ addScore });
   100% {
     opacity: 0;
     transform: translate(-50%, -160%) scale(0.9);
+  }
+}
+
+@keyframes combo-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(-10deg);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -80%) scale(1.3) rotate(5deg);
+  }
+  30% {
+    transform: translate(-50%, -100%) scale(1.1) rotate(-3deg);
+  }
+  50% {
+    transform: translate(-50%, -120%) scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -200%) scale(0.85) rotate(0deg);
   }
 }
 </style>

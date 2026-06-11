@@ -75,6 +75,36 @@ export interface GameState {
   maxSonarCharges: number;
   discoveredTargets: number;
   totalTargets: number;
+  combo: number;
+  maxCombo: number;
+  comboMultiplier: number;
+  sonarCombo: number;
+  maxSonarCombo: number;
+}
+
+export type ComboEventType =
+  | 'combo_increase'
+  | 'combo_break'
+  | 'sonar_combo_increase'
+  | 'sonar_combo_break'
+  | 'combo_milestone'
+  | 'sonar_reward';
+
+export interface ComboEvent {
+  type: ComboEventType;
+  combo: number;
+  maxCombo: number;
+  multiplier: number;
+  bonusPoints?: number;
+  bonusCharges?: number;
+  position?: Position;
+}
+
+export interface ComboStats {
+  maxCombo: number;
+  maxSonarCombo: number;
+  comboBonusPoints: number;
+  comboSonarCharges: number;
 }
 
 export type SubmarineTier = 'scout' | 'standard' | 'heavy';
@@ -498,6 +528,10 @@ export interface ScoreBreakdown {
   fromBonus: number;
   fromLevelUp: number;
   fromCombo: number;
+  maxCombo: number;
+  maxSonarCombo: number;
+  comboBonusPoints: number;
+  comboSonarCharges: number;
 }
 
 export interface HitRateStats {
@@ -578,6 +612,10 @@ export interface VoyageRecord {
   scoreBreakdown: ScoreBreakdown;
   hitRate: HitRateStats;
   anomalies: AnomalyEvent[];
+  maxCombo: number;
+  maxSonarCombo: number;
+  comboBonusPoints: number;
+  comboSonarChargesGained: number;
   difficultySnapshot?: {
     mapWidth: number;
     mapHeight: number;

@@ -50,6 +50,10 @@ export interface ActiveVoyageBuilder {
   currentLevelStartTime: number;
   levelDurations: number[];
   dangerHitCount: number;
+  maxCombo: number;
+  maxSonarCombo: number;
+  comboBonusPoints: number;
+  comboSonarChargesGained: number;
   loadout?: ExpeditionLoadout;
   dailyChallengeTitle?: string;
   rescueLevel?: number;
@@ -138,6 +142,10 @@ export class VoyageArchiveSystem {
       currentLevelStartTime: now,
       levelDurations: [],
       dangerHitCount: 0,
+      maxCombo: 0,
+      maxSonarCombo: 0,
+      comboBonusPoints: 0,
+      comboSonarChargesGained: 0,
       loadout: loadout ? { ...loadout } : undefined,
       dailyChallengeTitle: dailyChallenge?.title,
     };
@@ -174,6 +182,10 @@ export class VoyageArchiveSystem {
       currentLevelStartTime: now,
       levelDurations: [],
       dangerHitCount: 0,
+      maxCombo: 0,
+      maxSonarCombo: 0,
+      comboBonusPoints: 0,
+      comboSonarChargesGained: 0,
       rescueLevel: level,
     };
     return this.activeBuilder;
@@ -329,6 +341,18 @@ export class VoyageArchiveSystem {
     if (state.level > this.activeBuilder.peakLevel) {
       this.activeBuilder.peakLevel = state.level;
     }
+    if (state.maxCombo > this.activeBuilder.maxCombo) {
+      this.activeBuilder.maxCombo = state.maxCombo;
+    }
+    if (state.maxSonarCombo > this.activeBuilder.maxSonarCombo) {
+      this.activeBuilder.maxSonarCombo = state.maxSonarCombo;
+    }
+  }
+
+  updateComboStats(bonusPoints: number, bonusCharges: number) {
+    if (!this.activeBuilder) return;
+    this.activeBuilder.comboBonusPoints += bonusPoints;
+    this.activeBuilder.comboSonarChargesGained += bonusCharges;
   }
 
   finishVoyage(state: GameState, isVictory: boolean, isNewRecord: boolean, rescueResult?: RescueResult): VoyageRecord | null {
@@ -365,6 +389,10 @@ export class VoyageArchiveSystem {
       scoreBreakdown,
       hitRate,
       anomalies: builder.anomalies,
+      maxCombo: builder.maxCombo,
+      maxSonarCombo: builder.maxSonarCombo,
+      comboBonusPoints: builder.comboBonusPoints,
+      comboSonarChargesGained: builder.comboSonarChargesGained,
     };
 
     if (rescueResult) {
@@ -459,6 +487,10 @@ export class VoyageArchiveSystem {
       fromBonus,
       fromLevelUp,
       fromCombo,
+      maxCombo: builder.maxCombo,
+      maxSonarCombo: builder.maxSonarCombo,
+      comboBonusPoints: builder.comboBonusPoints,
+      comboSonarCharges: builder.comboSonarChargesGained,
     };
   }
 

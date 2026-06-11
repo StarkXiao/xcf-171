@@ -56,6 +56,10 @@
       :high-score="highScore"
       :session-unlocks="sessionUnlocks"
       :mission-result="missionResult"
+      :max-combo="comboStats?.maxCombo"
+      :max-sonar-combo="comboStats?.maxSonarCombo"
+      :combo-bonus-points="comboStats?.comboBonusPoints"
+      :combo-sonar-charges="comboStats?.comboSonarCharges"
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
@@ -102,7 +106,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -152,6 +156,7 @@ const lastVoiceprintVerdict = ref<VoiceprintVerdict | null>(null);
 const activeOceanEvents = ref<OceanEvent[]>([]);
 const activeMissions = ref<Mission[]>([]);
 const missionResult = ref<MissionResult | null>(null);
+const comboStats = ref<ComboStats | null>(null);
 
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
@@ -275,8 +280,87 @@ const handleScoreEvent = (event: ScoreEvent) => {
     }
   }
 
-  const type = event.type === 'levelUp' ? 'levelUp' : event.type === 'damage' ? 'damage' : 'collect';
+  const type = event.type === 'levelUp' ? 'levelUp' 
+    : event.type === 'damage' ? 'damage' 
+    : event.type === 'combo' ? 'combo'
+    : 'collect';
   floatingScoreRef.value.addScore(event.points, event.targetName, type, x, y);
+};
+
+const handleComboEvent = (event: ComboEvent) => {
+  if (!floatingScoreRef.value || !containerRef.value) return;
+
+  const rect = containerRef.value.getBoundingClientRect();
+  let x = rect.width / 2;
+  let y = rect.height / 2;
+
+  if (event.position && (event.position.x !== 0 || event.position.y !== 0)) {
+    const world = gameController?.screenToWorld(event.position.x, event.position.y);
+    if (world) {
+      x = Math.max(40, Math.min(rect.width - 40, world.x));
+      y = Math.max(60, Math.min(rect.height - 160, event.position.y));
+    }
+  }
+
+  if (event.type === 'combo_increase' && event.combo >= 3) {
+    floatingScoreRef.value.addScore(
+      0,
+      `${event.combo} 连击! ×${event.multiplier.toFixed(1)}`,
+      'combo',
+      x,
+      y - 20
+    );
+  } else if (event.type === 'sonar_combo_increase' && event.combo >= 3) {
+    floatingScoreRef.value.addScore(
+      0,
+      `${event.combo} 连探! ×${event.multiplier.toFixed(1)}`,
+      'combo',
+      x,
+      y - 60
+    );
+  } else if (event.type === 'combo_break') {
+    floatingScoreRef.value.addScore(
+      0,
+      '连击中断',
+      'damage',
+      x,
+      y
+    );
+  } else if (event.type === 'sonar_combo_break') {
+    floatingScoreRef.value.addScore(
+      0,
+      '连探中断',
+      'damage',
+      x,
+      y - 40
+    );
+  } else if (event.type === 'combo_milestone') {
+    if (event.bonusPoints) {
+      floatingScoreRef.value.addScore(
+        event.bonusPoints,
+        `连击里程碑 +${event.bonusPoints}`,
+        'combo',
+        x,
+        y - 80
+      );
+    }
+    if (event.bonusPoints || event.bonusCharges) {
+      voyageArchiveSystem.updateComboStats(event.bonusPoints || 0, event.bonusCharges || 0);
+    }
+  } else if (event.type === 'sonar_reward') {
+    if (event.bonusPoints) {
+      floatingScoreRef.value.addScore(
+        event.bonusPoints,
+        `连探奖励 +${event.bonusPoints}`,
+        'combo',
+        x,
+        y - 80
+      );
+    }
+    if (event.bonusPoints || event.bonusCharges) {
+      voyageArchiveSystem.updateComboStats(event.bonusPoints || 0, event.bonusCharges || 0);
+    }
+  }
 };
 
 const handleUnlockEvent = (_event: UnlockEvent) => {
@@ -289,6 +373,7 @@ const handleGameOver = (finalScore: number) => {
 
   if (gameController) {
     missionResult.value = gameController.getMissionSystem().getResult();
+    comboStats.value = gameController.getComboStats();
   }
 
   if (finalScore > highScore.value) {
@@ -552,6 +637,7 @@ const handleHome = () => {
   lastVoiceprintVerdict.value = null;
   activeMissions.value = [];
   missionResult.value = null;
+  comboStats.value = null;
   refreshCollection();
 
   if (relaySystem) {
@@ -670,7 +756,8 @@ onMounted(() => {
       handleTreasureCollected,
       handleMissionCompleted,
       handleMissionProgress,
-      handleMissionEffectsChanged
+      handleMissionEffectsChanged,
+      handleComboEvent
     );
   }
 

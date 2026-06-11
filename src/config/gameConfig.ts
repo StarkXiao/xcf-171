@@ -27,6 +27,40 @@ export const GAME_CONFIG = {
     INITIAL_LIVES: 3,
     TARGETS_PER_LEVEL: 8,
   },
+  COMBO: {
+    COMBO_TIMEOUT: 8000,
+    SONAR_COMBO_TIMEOUT: 5000,
+    MULTIPLIERS: [
+      { combo: 3, multiplier: 1.2 },
+      { combo: 5, multiplier: 1.5 },
+      { combo: 8, multiplier: 2.0 },
+      { combo: 12, multiplier: 2.5 },
+      { combo: 16, multiplier: 3.0 },
+      { combo: 20, multiplier: 4.0 },
+    ],
+    SONAR_MULTIPLIERS: [
+      { combo: 2, multiplier: 1.1 },
+      { combo: 4, multiplier: 1.2 },
+      { combo: 6, multiplier: 1.3 },
+      { combo: 8, multiplier: 1.5 },
+    ],
+    MILESTONE_BONUSES: [
+      { combo: 5, points: 100, charges: 1 },
+      { combo: 10, points: 200, charges: 1 },
+      { combo: 15, points: 300, charges: 2 },
+      { combo: 20, points: 500, charges: 2 },
+      { combo: 25, points: 800, charges: 3 },
+      { combo: 30, points: 1000, charges: 3 },
+    ],
+    SONAR_MILESTONE_BONUSES: [
+      { combo: 3, points: 50, charges: 0 },
+      { combo: 5, points: 100, charges: 1 },
+      { combo: 8, points: 150, charges: 1 },
+      { combo: 10, points: 200, charges: 2 },
+    ],
+    WRECK_BONUS_MULTIPLIER: 1.5,
+    CREATURE_BONUS_MULTIPLIER: 1.0,
+  },
   COLORS: {
     BACKGROUND: 0x000814,
     GRID: 0x003344,
@@ -35,6 +69,13 @@ export const GAME_CONFIG = {
     WRECK: 0xffcc00,
     DANGER: 0xff3355,
     PLAYER: 0x00ff88,
+    COMBO: {
+      LOW: 0x00ffaa,
+      MEDIUM: 0xffcc00,
+      HIGH: 0xff8800,
+      EXTREME: 0xff3355,
+      LEGENDARY: 0xff00ff,
+    },
   },
 };
 
