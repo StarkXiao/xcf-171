@@ -43,6 +43,27 @@
         </div>
       </div>
 
+      <div class="salvage-entry" @click="$emit('openSalvageEvent')" v-if="eventState">
+        <div class="salvage-icon-wrap">
+          <span class="salvage-icon">🏴‍☠️</span>
+          <span class="salvage-glow"></span>
+        </div>
+        <div class="salvage-info">
+          <div class="salvage-title">{{ eventState.config?.title }}</div>
+          <div class="salvage-subtitle">
+            <span v-if="eventState.isActive">剩余 {{ formatCountdown(eventState.timeRemaining) }}</span>
+            <span v-else-if="eventState.isComingSoon">即将开始</span>
+            <span v-else>已结束</span>
+          </div>
+        </div>
+        <div class="salvage-currency" v-if="eventState.progress && eventState.progress.eventCurrency > 0">
+          <span class="salvage-currency-icon">💰</span>
+          <span class="salvage-currency-value">{{ eventState.progress.eventCurrency }}</span>
+        </div>
+        <div class="salvage-badge" v-if="eventState.isActive">HOT</div>
+        <div class="salvage-arrow">›</div>
+      </div>
+
       <div class="relay-entry" @click="$emit('openRelayMode')">
         <div class="relay-icon-wrap">
           <span class="relay-icon">🤝</span>
@@ -97,6 +118,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { SalvageEventState } from '../types/game';
 
 const props = defineProps<{
   highScore: number;
@@ -109,6 +131,7 @@ const props = defineProps<{
     dangers: { total: number; unlocked: number };
   };
   relayHighScore?: number;
+  eventState?: SalvageEventState | null;
 }>();
 
 defineEmits<{
@@ -116,12 +139,24 @@ defineEmits<{
   (e: 'openCollection'): void;
   (e: 'openPrep'): void;
   (e: 'openRelayMode'): void;
+  (e: 'openSalvageEvent'): void;
 }>();
 
 const collectionPercent = computed(() => {
   if (props.collectionStats.total === 0) return 0;
   return Math.round((props.collectionStats.unlocked / props.collectionStats.total) * 100);
 });
+
+const formatCountdown = (ms: number): string => {
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  if (days > 0) {
+    return `${days}天${hours}小时`;
+  }
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  return `${hours}小时${minutes}分`;
+};
 </script>
 
 <style scoped>
@@ -605,5 +640,160 @@ const collectionPercent = computed(() => {
 .relay-entry:hover .relay-arrow {
   transform: translateX(3px);
   color: rgba(180, 150, 255, 0.8);
+}
+
+.salvage-entry {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(255, 150, 50, 0.1), rgba(200, 80, 20, 0.1));
+  border: 1px solid rgba(255, 180, 80, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.salvage-entry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 180, 80, 0.08),
+    transparent
+  );
+  animation: salvage-shine 3s ease-in-out infinite;
+}
+
+@keyframes salvage-shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.salvage-entry:hover {
+  background: linear-gradient(135deg, rgba(255, 170, 70, 0.18), rgba(220, 100, 40, 0.18));
+  border-color: rgba(255, 200, 100, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(255, 150, 50, 0.2);
+}
+
+.salvage-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.salvage-icon {
+  font-size: 28px;
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+.salvage-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 180, 80, 0.3);
+  border-radius: 50%;
+  animation: salvage-icon-glow 2s ease-in-out infinite;
+}
+
+@keyframes salvage-icon-glow {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0.2;
+  }
+}
+
+.salvage-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.salvage-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(255, 210, 140, 0.95);
+  letter-spacing: 2px;
+}
+
+.salvage-subtitle {
+  font-size: 11px;
+  color: rgba(255, 180, 120, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.salvage-currency {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 10px;
+  background: rgba(255, 150, 50, 0.15);
+  border: 1px solid rgba(255, 180, 80, 0.3);
+  border-radius: 12px;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.salvage-currency-icon {
+  font-size: 12px;
+}
+
+.salvage-currency-value {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffcc66;
+  font-family: 'Courier New', monospace;
+}
+
+.salvage-badge {
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #ff6644, #dd3322);
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(255, 100, 50, 0.5);
+  animation: badge-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.salvage-arrow {
+  font-size: 22px;
+  color: rgba(255, 180, 100, 0.5);
+  font-weight: bold;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.salvage-entry:hover .salvage-arrow {
+  transform: translateX(3px);
+  color: rgba(255, 210, 140, 0.8);
 }
 </style>

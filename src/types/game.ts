@@ -718,3 +718,91 @@ export type RelayEvent =
   | { type: 'target_discovered'; targetType: string }
   | { type: 'danger_hit'; targetType: string };
 
+export type SalvageRewardType = 'sonar_charges' | 'extra_life' | 'bonus_points' | 'wreck_multiplier' | 'special_item';
+
+export interface SalvageEventWreck {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  basePoints: number;
+  eventBonus: number;
+  minRadius: number;
+  maxRadius: number;
+  shape: 'circle' | 'triangle' | 'square' | 'irregular';
+}
+
+export interface SalvagePhaseGoal {
+  id: string;
+  phase: number;
+  title: string;
+  description: string;
+  targetType: 'total_wrecks' | 'rare_wrecks' | 'score' | 'expeditions';
+  targetValue: number;
+  rewardType: SalvageRewardType;
+  rewardValue: number;
+  rewardName: string;
+}
+
+export interface SalvageExchangeItem {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  cost: number;
+  rewardType: SalvageRewardType;
+  rewardValue: number;
+  stock: number;
+  maxStock: number;
+  sortOrder: number;
+}
+
+export interface SalvageEventConfig {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  startTime: number;
+  endTime: number;
+  eventWrecks: SalvageEventWreck[];
+  phaseGoals: SalvagePhaseGoal[];
+  exchangeItems: SalvageExchangeItem[];
+  wreckWeightBonus: number;
+  wreckCountMultiplier: number;
+}
+
+export interface SalvageEventProgress {
+  eventId: string;
+  startedAt: number;
+  totalWrecksCollected: number;
+  rareWrecksCollected: number;
+  totalScoreEarned: number;
+  expeditionsCompleted: number;
+  eventCurrency: number;
+  totalEventCurrency: number;
+  completedPhases: string[];
+  claimedPhases: string[];
+  exchangePurchaseHistory: Record<string, number>;
+  lastActivityAt: number;
+}
+
+export interface SalvageEventState {
+  isActive: boolean;
+  isComingSoon: boolean;
+  isEnded: boolean;
+  timeRemaining: number;
+  timeUntilStart: number;
+  config: SalvageEventConfig | null;
+  progress: SalvageEventProgress | null;
+}
+
+export type SalvageEventType =
+  | { type: 'phase_completed'; phase: SalvagePhaseGoal }
+  | { type: 'wreck_collected'; wreck: SalvageEventWreck; currency: number }
+  | { type: 'reward_claimed'; phase: SalvagePhaseGoal }
+  | { type: 'exchange_purchased'; item: SalvageExchangeItem }
+  | { type: 'event_started' }
+  | { type: 'event_ended' };
+
+

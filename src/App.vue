@@ -17,14 +17,16 @@
     />
 
     <StartScreen
-      v-if="!gameStarted && !showCollection && !showPrep && !showRelayIntro"
+      v-if="!gameStarted && !showCollection && !showPrep && !showRelayIntro && !showSalvageEvent"
       :high-score="highScore"
       :collection-stats="collectionStats"
       :relay-high-score="relayHighScore"
+      :event-state="salvageEventState"
       @start="handleStart"
       @open-collection="openCollection"
       @open-prep="openPrep"
       @open-relay-mode="openRelayIntro"
+      @open-salvage-event="openSalvageEvent"
     />
 
     <RelayModeIntro
@@ -61,6 +63,12 @@
       @home="handleHome"
     />
 
+    <SalvageEvent
+      v-if="showSalvageEvent"
+      :system="salvageEventSystem"
+      @close="closeSalvageEvent"
+    />
+
     <CollectionCenter
       v-if="showCollection"
       :collection-data="collectionData"
@@ -80,11 +88,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
 import { VoyageArchiveSystem } from './game/VoyageArchiveSystem';
+import { SalvageEventSystem } from './game/SalvageEventSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT } from './config/expeditionConfig';
 import GameHUD from './components/GameHUD.vue';
@@ -96,6 +105,7 @@ import ExpeditionPrep from './components/ExpeditionPrep.vue';
 import RelayModeIntro from './components/RelayModeIntro.vue';
 import RelayGameHUD from './components/RelayGameHUD.vue';
 import RelayGameOver from './components/RelayGameOver.vue';
+import SalvageEvent from './components/SalvageEvent.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -116,8 +126,12 @@ const showRelayHint = ref(true);
 const lastRelayResult = ref<RelayResult | null>(null);
 const isRelayNewRecord = ref(false);
 
+const showSalvageEvent = ref(false);
+const salvageEventState = ref<SalvageEventState | null>(null);
+
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
+const salvageEventSystem = new SalvageEventSystem();
 
 const relayGameState = reactive<RelayGameState>({
   isPlaying: false,
@@ -153,6 +167,23 @@ const collectionStats = ref(collectionSystem.getStats());
 const refreshCollection = () => {
   collectionData.value = collectionSystem.getData();
   collectionStats.value = collectionSystem.getStats();
+};
+
+const refreshSalvageEventState = () => {
+  salvageEventState.value = salvageEventSystem.getState();
+};
+
+const handleSalvageEvent = (_event: SalvageEventType) => {
+  refreshSalvageEventState();
+};
+
+const openSalvageEvent = () => {
+  refreshSalvageEventState();
+  showSalvageEvent.value = true;
+};
+
+const closeSalvageEvent = () => {
+  showSalvageEvent.value = false;
 };
 
 const gameState = reactive<GameState>({
@@ -516,9 +547,12 @@ onMounted(() => {
   } catch (_e) {}
 
   refreshCollection();
+  refreshSalvageEventState();
+
+  salvageEventSystem.setEventCallback(handleSalvageEvent);
 
   if (canvasRef.value) {
-    gameController = new GameController(canvasRef.value, collectionSystem);
+    gameController = new GameController(canvasRef.value, collectionSystem, salvageEventSystem);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,
@@ -528,11 +562,21 @@ onMounted(() => {
       handleUnlockEvent
     );
   }
+
+  const salvageTimer = window.setInterval(() => {
+    refreshSalvageEventState();
+  }, 1000);
+  (window as any).__salvageTimer = salvageTimer;
 });
 
 onUnmounted(() => {
   gameController?.destroy();
   relaySystem?.destroy();
+  salvageEventSystem.destroy();
+  const salvageTimer = (window as any).__salvageTimer;
+  if (salvageTimer) {
+    clearInterval(salvageTimer);
+  }
 });
 </script>
 
