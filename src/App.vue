@@ -73,7 +73,7 @@
 
     <VoiceprintLab
       v-if="showVoiceprintLab"
-      :system="voiceprintLabSystem"
+      :collection-system="collectionSystem"
       :high-score="voiceprintHighScore"
       @close="closeVoiceprintLab"
       @verdict="handleVoiceprintVerdict"
@@ -104,7 +104,6 @@ import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
 import { VoyageArchiveSystem } from './game/VoyageArchiveSystem';
 import { SalvageEventSystem } from './game/SalvageEventSystem';
-import { VoiceprintLabSystem } from './game/VoiceprintLabSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT } from './config/expeditionConfig';
 import GameHUD from './components/GameHUD.vue';
@@ -148,7 +147,6 @@ const lastVoiceprintVerdict = ref<VoiceprintVerdict | null>(null);
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
 const salvageEventSystem = new SalvageEventSystem();
-const voiceprintLabSystem = new VoiceprintLabSystem(collectionSystem);
 
 const relayGameState = reactive<RelayGameState>({
   isPlaying: false,
@@ -619,7 +617,6 @@ onUnmounted(() => {
   gameController?.destroy();
   relaySystem?.destroy();
   salvageEventSystem.destroy();
-  voiceprintLabSystem.destroy();
   const salvageTimer = (window as any).__salvageTimer;
   if (salvageTimer) {
     clearInterval(salvageTimer);

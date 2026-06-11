@@ -1,312 +1,371 @@
 <template>
-  <div v-if="!gameStarted && !gameState.isGameOver" class="overlay">
-    <div class="intro-content">
-      <div class="title-section">
-        <div class="mode-badge">🔬 高级研究</div>
-        <h1 class="game-title">声纹识别实验室</h1>
-        <div class="subtitle">VOICEPRINT ANALYSIS LAB</div>
-      </div>
+  <div class="voiceprint-lab">
+    <div class="game-canvas" ref="canvasRef"></div>
 
-      <div class="lab-animation">
-        <div class="waveform-container">
-          <div class="wave-bar" v-for="i in 20" :key="i" :style="{ height: `${20 + Math.random() * 60}%`, animationDelay: `${i * 0.05}s` }"></div>
-        </div>
-        <div class="lab-icon">🎯</div>
-      </div>
-
-      <div class="briefing">
-        <div class="briefing-header">
-          <span class="briefing-icon">📊</span>
-          <span>任务说明</span>
-        </div>
-        <div class="briefing-text">
-          深海环境复杂，回波信号真假难辨。通过多次声呐采样收集声纹特征，判别目标真伪。<strong>样本越少，风险越高，但收益也越大！</strong>
-        </div>
-      </div>
-
-      <div class="instructions">
-        <div class="instruction-item">
-          <span class="icon">🔊</span>
-          <span>点击空白处释放声呐发现目标</span>
-        </div>
-        <div class="instruction-item">
-          <span class="icon">🎯</span>
-          <span>点击已发现目标进入分析模式</span>
-        </div>
-        <div class="instruction-item highlight">
-          <span class="icon">📡</span>
-          <span>精确采样（消耗2声呐）获取声纹特征</span>
-        </div>
-        <div class="instruction-item warn">
-          <span class="icon">⚖️</span>
-          <span>判断真伪：正确得分，错误扣血扣分</span>
-        </div>
-      </div>
-
-      <div class="risk-table">
-        <div class="risk-title">风险收益矩阵</div>
-        <div class="risk-rows">
-          <div class="risk-row extreme" v-if="RISK_PROFILES[0]">
-            <span class="risk-label">{{ RISK_PROFILES[0].label }}</span>
-            <span class="risk-samples">{{ RISK_PROFILES[0].sampleCount }}样本</span>
-            <span class="risk-rate">{{ Math.round(RISK_PROFILES[0].successRate * 100) }}%</span>
-            <span class="risk-reward">×{{ RISK_PROFILES[0].rewardMultiplier }}</span>
-            <span class="risk-penalty">×{{ RISK_PROFILES[0].penaltyMultiplier }}</span>
+    <div
+      v-if="gameState.isPlaying && !gameState.isGameOver && !selectedTarget"
+      class="game-hud"
+    >
+      <div class="hud-top">
+        <div class="hud-panel">
+          <div class="hud-item">
+            <span class="hud-label">分数</span>
+            <span class="hud-value score">{{ gameState.score.toLocaleString() }}</span>
           </div>
-          <div class="risk-row high" v-if="RISK_PROFILES[1]">
-            <span class="risk-label">{{ RISK_PROFILES[1].label }}</span>
-            <span class="risk-samples">{{ RISK_PROFILES[1].sampleCount }}样本</span>
-            <span class="risk-rate">{{ Math.round(RISK_PROFILES[1].successRate * 100) }}%</span>
-            <span class="risk-reward">×{{ RISK_PROFILES[1].rewardMultiplier }}</span>
-            <span class="risk-penalty">×{{ RISK_PROFILES[1].penaltyMultiplier }}</span>
+          <div class="hud-item">
+            <span class="hud-label">等级</span>
+            <span class="hud-value level">Lv.{{ gameState.level }}</span>
           </div>
-          <div class="risk-row medium" v-if="RISK_PROFILES[2]">
-            <span class="risk-label">{{ RISK_PROFILES[2].label }}</span>
-            <span class="risk-samples">{{ RISK_PROFILES[2].sampleCount }}样本</span>
-            <span class="risk-rate">{{ Math.round(RISK_PROFILES[2].successRate * 100) }}%</span>
-            <span class="risk-reward">×{{ RISK_PROFILES[2].rewardMultiplier }}</span>
-            <span class="risk-penalty">×{{ RISK_PROFILES[2].penaltyMultiplier }}</span>
-          </div>
-          <div class="risk-row low" v-if="RISK_PROFILES[4]">
-            <span class="risk-label">{{ RISK_PROFILES[4].label }}</span>
-            <span class="risk-samples">{{ RISK_PROFILES[4].sampleCount }}样本</span>
-            <span class="risk-rate">{{ Math.round(RISK_PROFILES[4].successRate * 100) }}%</span>
-            <span class="risk-reward">×{{ RISK_PROFILES[4].rewardMultiplier }}</span>
-            <span class="risk-penalty">×{{ RISK_PROFILES[4].penaltyMultiplier }}</span>
+        </div>
+        <div class="hud-panel">
+          <div class="hud-item lives">
+            <span class="hud-label">生命</span>
+            <div class="hearts">
+              <span v-for="i in Math.max(gameState.lives, 0)" :key="i" class="heart">❤</span>
+              <span v-for="i in Math.max((3 - gameState.lives), 0)" :key="'empty' + i" class="heart empty">♡</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="high-score" v-if="highScore > 0">
-        <span class="score-label">🏆 最高分数</span>
-        <span class="score-value">{{ highScore.toLocaleString() }}</span>
-      </div>
-
-      <button class="start-btn" @click="handleStart">
-        <span class="btn-text">🔬 开始实验</span>
-        <span class="btn-glow"></span>
-      </button>
-
-      <button class="back-btn" @click="handleHome">
-        ← 返回主页
-      </button>
-    </div>
-  </div>
-
-  <div v-if="gameState.isPlaying && selectedTarget" class="analysis-panel">
-    <div class="panel-header">
-      <div class="target-info">
-        <span class="target-icon">{{ selectedTarget.icon }}</span>
-        <div class="target-meta">
-          <div class="target-name">{{ selectedTarget.name }}</div>
-          <div class="target-category" :style="{ color: CATEGORY_INFO[selectedTarget.category].color }">
-            {{ CATEGORY_INFO[selectedTarget.category].icon }} {{ CATEGORY_INFO[selectedTarget.category].label }}
+      <div class="hud-bottom">
+        <div class="sonar-bar">
+          <div class="sonar-label">声呐能量</div>
+          <div class="sonar-charges">
+            <div
+              v-for="i in gameState.maxSonarCharges"
+              :key="i"
+              class="sonar-charge"
+              :class="{ active: i <= gameState.sonarCharges }"
+            >
+              <div class="charge-inner"></div>
+            </div>
+          </div>
+        </div>
+        <div class="progress">
+          <div class="progress-label">
+            待分析 {{ gameState.targetsRemaining }} / {{ gameState.targetsAnalyzed + gameState.targetsRemaining }}
+          </div>
+          <div class="combo-info" v-if="gameState.consecutiveCorrect > 1">
+            <span class="combo-badge">🔥 连击 ×{{ gameState.consecutiveCorrect }}</span>
           </div>
         </div>
       </div>
-      <button class="close-btn" @click="handleClosePanel">×</button>
     </div>
 
-    <div class="risk-badge" :style="{ backgroundColor: RISK_LEVEL_INFO[selectedTarget.riskLevel].bgColor, color: RISK_LEVEL_INFO[selectedTarget.riskLevel].color }">
-      {{ RISK_LEVEL_INFO[selectedTarget.riskLevel].label }} · {{ selectedTarget.basePoints }} 基础分
+    <div
+      v-if="gameState.isPlaying && !gameState.isGameOver"
+      class="touch-area"
+      @click="handleClick"
+      @touchstart.prevent="handleTouch"
+    ></div>
+
+    <div v-if="!gameStarted && !gameState.isGameOver" class="overlay">
+      <div class="intro-content">
+        <div class="title-section">
+          <div class="mode-badge">🔬 高级研究</div>
+          <h1 class="game-title">声纹识别实验室</h1>
+          <div class="subtitle">VOICEPRINT ANALYSIS LAB</div>
+        </div>
+
+        <div class="lab-animation">
+          <div class="waveform-container">
+            <div class="wave-bar" v-for="i in 20" :key="i" :style="{ height: `${20 + Math.random() * 60}%`, animationDelay: `${i * 0.05}s` }"></div>
+          </div>
+          <div class="lab-icon">🎯</div>
+        </div>
+
+        <div class="briefing">
+          <div class="briefing-header">
+            <span class="briefing-icon">📊</span>
+            <span>任务说明</span>
+          </div>
+          <div class="briefing-text">
+            深海环境复杂，回波信号真假难辨。通过多次声呐采样收集声纹特征，判别目标真伪。<strong>样本越少，风险越高，但收益也越大！</strong>
+          </div>
+        </div>
+
+        <div class="instructions">
+          <div class="instruction-item">
+            <span class="icon">🔊</span>
+            <span>点击空白处释放声呐发现目标</span>
+          </div>
+          <div class="instruction-item">
+            <span class="icon">🎯</span>
+            <span>点击已发现目标进入分析模式</span>
+          </div>
+          <div class="instruction-item highlight">
+            <span class="icon">📡</span>
+            <span>精确采样（消耗2声呐）获取声纹特征</span>
+          </div>
+          <div class="instruction-item warn">
+            <span class="icon">⚖️</span>
+            <span>判断真伪：正确得分，错误扣血扣分</span>
+          </div>
+        </div>
+
+        <div class="risk-table">
+          <div class="risk-title">风险收益矩阵</div>
+          <div class="risk-rows">
+            <div class="risk-row extreme" v-if="RISK_PROFILES[0]">
+              <span class="risk-label">{{ RISK_PROFILES[0].label }}</span>
+              <span class="risk-samples">{{ RISK_PROFILES[0].sampleCount }}样本</span>
+              <span class="risk-rate">{{ Math.round(RISK_PROFILES[0].successRate * 100) }}%</span>
+              <span class="risk-reward">×{{ RISK_PROFILES[0].rewardMultiplier }}</span>
+              <span class="risk-penalty">×{{ RISK_PROFILES[0].penaltyMultiplier }}</span>
+            </div>
+            <div class="risk-row high" v-if="RISK_PROFILES[1]">
+              <span class="risk-label">{{ RISK_PROFILES[1].label }}</span>
+              <span class="risk-samples">{{ RISK_PROFILES[1].sampleCount }}样本</span>
+              <span class="risk-rate">{{ Math.round(RISK_PROFILES[1].successRate * 100) }}%</span>
+              <span class="risk-reward">×{{ RISK_PROFILES[1].rewardMultiplier }}</span>
+              <span class="risk-penalty">×{{ RISK_PROFILES[1].penaltyMultiplier }}</span>
+            </div>
+            <div class="risk-row medium" v-if="RISK_PROFILES[2]">
+              <span class="risk-label">{{ RISK_PROFILES[2].label }}</span>
+              <span class="risk-samples">{{ RISK_PROFILES[2].sampleCount }}样本</span>
+              <span class="risk-rate">{{ Math.round(RISK_PROFILES[2].successRate * 100) }}%</span>
+              <span class="risk-reward">×{{ RISK_PROFILES[2].rewardMultiplier }}</span>
+              <span class="risk-penalty">×{{ RISK_PROFILES[2].penaltyMultiplier }}</span>
+            </div>
+            <div class="risk-row low" v-if="RISK_PROFILES[4]">
+              <span class="risk-label">{{ RISK_PROFILES[4].label }}</span>
+              <span class="risk-samples">{{ RISK_PROFILES[4].sampleCount }}样本</span>
+              <span class="risk-rate">{{ Math.round(RISK_PROFILES[4].successRate * 100) }}%</span>
+              <span class="risk-reward">×{{ RISK_PROFILES[4].rewardMultiplier }}</span>
+              <span class="risk-penalty">×{{ RISK_PROFILES[4].penaltyMultiplier }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="high-score" v-if="highScore > 0">
+          <span class="score-label">🏆 最高分数</span>
+          <span class="score-value">{{ highScore.toLocaleString() }}</span>
+        </div>
+
+        <button class="start-btn" @click="handleStart">
+          <span class="btn-text">🔬 开始实验</span>
+          <span class="btn-glow"></span>
+        </button>
+
+        <button class="back-btn" @click="handleHome">
+          ← 返回主页
+        </button>
+      </div>
     </div>
 
-    <div class="samples-section">
-      <div class="section-header">
-        <span class="section-title">📊 声纹样本</span>
-        <span class="sample-count">{{ samples.length }}/{{ VOICEPRINT_CONFIG.GAME.SAMPLES_PER_TARGET }}</span>
-      </div>
-      
-      <div class="samples-grid">
-        <div 
-          v-for="sample in samples" 
-          :key="sample.id" 
-          class="sample-card"
-        >
-          <div class="sample-id">#{{ sample.id }}</div>
-          <div class="sample-features">
-            <div 
-              v-for="feature in sample.features" 
-              :key="feature.id"
-              class="feature-dot"
-              :style="{ 
-                backgroundColor: feature.isGenuine ? '#00ff88' : '#ff6688',
-                opacity: 0.5 + feature.amplitude * 0.5,
-                transform: `scale(${0.6 + feature.amplitude * 0.6})`
-              }"
-              :title="`频率: ${Math.round(feature.frequency)}Hz, 振幅: ${Math.round(feature.amplitude * 100)}%, 品质: ${SAMPLE_QUALITY_INFO[feature.quality].label}`"
-            ></div>
+    <div v-if="gameState.isPlaying && selectedTarget" class="analysis-panel">
+      <div class="panel-header">
+        <div class="target-info">
+          <span class="target-icon">{{ selectedTarget.icon }}</span>
+          <div class="target-meta">
+            <div class="target-name">{{ selectedTarget.name }}</div>
+            <div class="target-category" :style="{ color: CATEGORY_INFO[selectedTarget.category].color }">
+              {{ CATEGORY_INFO[selectedTarget.category].icon }} {{ CATEGORY_INFO[selectedTarget.category].label }}
+            </div>
           </div>
-          <div class="sample-time">{{ formatTime(sample.collectedAt) }}</div>
+        </div>
+        <button class="close-btn" @click="handleClosePanel">×</button>
+      </div>
+
+      <div class="risk-badge" :style="{ backgroundColor: RISK_LEVEL_INFO[selectedTarget.riskLevel].bgColor, color: RISK_LEVEL_INFO[selectedTarget.riskLevel].color }">
+        {{ RISK_LEVEL_INFO[selectedTarget.riskLevel].label }} · {{ selectedTarget.basePoints }} 基础分
+      </div>
+
+      <div class="samples-section">
+        <div class="section-header">
+          <span class="section-title">📊 声纹样本</span>
+          <span class="sample-count">{{ samples.length }}/{{ VOICEPRINT_CONFIG.GAME.SAMPLES_PER_TARGET }}</span>
         </div>
         
-        <div 
-          v-for="i in emptySlots" 
-          :key="'empty-' + i" 
-          class="sample-card empty"
-        >
-          <span class="empty-hint">待采集</span>
-        </div>
-      </div>
-
-      <button 
-        class="sample-btn" 
-        :disabled="samples.length >= VOICEPRINT_CONFIG.GAME.SAMPLES_PER_TARGET || gameState.sonarCharges < VOICEPRINT_CONFIG.SONAR.PRECISE_SAMPLE_COST"
-        @click="handleCollectSample"
-      >
-        <span class="btn-icon">📡</span>
-        <span>精确采样</span>
-        <span class="cost">(-{{ VOICEPRINT_CONFIG.SONAR.PRECISE_SAMPLE_COST }} 🔊)</span>
-      </button>
-    </div>
-
-    <div class="analysis-section" v-if="samples.length > 0">
-      <div class="section-header">
-        <span class="section-title">📈 风险评估</span>
-        <span class="risk-profile" :class="currentRiskClass">{{ currentRiskProfile.label }}</span>
-      </div>
-      
-      <div class="risk-metrics">
-        <div class="metric">
-          <span class="metric-label">成功率</span>
-          <span class="metric-value success">{{ Math.round(currentRiskProfile.successRate * 100) }}%</span>
-        </div>
-        <div class="metric">
-          <span class="metric-label">奖励倍数</span>
-          <span class="metric-value reward">×{{ currentRiskProfile.rewardMultiplier }}</span>
-        </div>
-        <div class="metric">
-          <span class="metric-label">惩罚倍数</span>
-          <span class="metric-value penalty">×{{ currentRiskProfile.penaltyMultiplier }}</span>
-        </div>
-      </div>
-
-      <div class="predicted-score">
-        <div class="score-row">
-          <span>预计正确得分</span>
-          <span class="positive">+{{ predictedReward.toLocaleString() }}</span>
-        </div>
-        <div class="score-row">
-          <span>预计错误扣分</span>
-          <span class="negative">-{{ predictedPenalty.toLocaleString() }}</span>
-        </div>
-        <div class="score-row high-risk" v-if="samples.length <= 2">
-          <span>高风险额外奖励</span>
-          <span class="positive">+{{ Math.round(predictedReward * 0.5).toLocaleString() }}</span>
-        </div>
-      </div>
-
-      <div class="verdict-buttons">
-        <button 
-          class="verdict-btn genuine"
-          @click="handleVerdict('genuine')"
-        >
-          <span class="btn-icon">✓</span>
-          <span>判定为真</span>
-        </button>
-        <button 
-          class="verdict-btn fake"
-          @click="handleVerdict('fake')"
-        >
-          <span class="btn-icon">✗</span>
-          <span>判定为假</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="hint" v-else>
-      <span class="hint-icon">💡</span>
-      <span>至少采集1个样本后才能进行判定</span>
-    </div>
-  </div>
-
-  <div v-if="gameState.isGameOver && !showCollection && result" class="overlay">
-    <div class="result-content">
-      <div class="result-header">
-        <div class="rank-badge" :class="result.rank">
-          <span class="rank-letter">{{ result.rank }}</span>
-        </div>
-        <div class="result-title">
-          <span v-if="result.isNewRecord" class="new-record">🎊 新纪录！</span>
-          <span v-else>实验结束</span>
-        </div>
-      </div>
-
-      <div class="final-score">
-        <span class="score-label">最终得分</span>
-        <span class="score-value">{{ result.finalScore.toLocaleString() }}</span>
-      </div>
-
-      <div class="result-stats">
-        <div class="stat-row">
-          <span class="stat-label">到达等级</span>
-          <span class="stat-value">Lv.{{ result.level }}</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">正确判定</span>
-          <span class="stat-value correct">{{ result.correctVerdicts }}</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">错误判定</span>
-          <span class="stat-value wrong">{{ result.wrongVerdicts }}</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">准确率</span>
-          <span class="stat-value">{{ Math.round(result.accuracy * 100) }}%</span>
-        </div>
-        <div class="stat-row highlight">
-          <span class="stat-label">高风险奖励</span>
-          <span class="stat-value bonus">+{{ result.highRiskBonus.toLocaleString() }}</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">最高连击</span>
-          <span class="stat-value combo">×{{ result.maxConsecutiveCorrect }}</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">声呐使用</span>
-          <span class="stat-value">{{ result.totalSonarUsed }} 次</span>
-        </div>
-      </div>
-
-      <div class="session-unlocks" v-if="result.sessionUnlocks && result.sessionUnlocks.length > 0">
-        <div class="unlocks-title">📚 本次新发现</div>
-        <div class="unlocks-list">
+        <div class="samples-grid">
           <div 
-            v-for="unlock in result.sessionUnlocks" 
-            :key="unlock.name"
-            class="unlock-item"
-            :class="{ 'new': unlock.isNew }"
+            v-for="sample in samples" 
+            :key="sample.id" 
+            class="sample-card"
           >
-            <span class="unlock-type">{{ unlock.type === 'creature' ? '🐟' : unlock.type === 'wreck' ? '⚓' : '⚠️' }}</span>
-            <span class="unlock-name">{{ unlock.name }}</span>
-            <span v-if="unlock.isNew" class="new-badge">NEW</span>
+            <div class="sample-id">#{{ sample.id }}</div>
+            <div class="sample-features">
+              <div 
+                v-for="feature in sample.features" 
+                :key="feature.id"
+                class="feature-dot"
+                :style="{ 
+                  backgroundColor: feature.isGenuine ? '#00ff88' : '#ff6688',
+                  opacity: 0.5 + feature.amplitude * 0.5,
+                  transform: `scale(${0.6 + feature.amplitude * 0.6})`
+                }"
+                :title="`频率: ${Math.round(feature.frequency)}Hz, 振幅: ${Math.round(feature.amplitude * 100)}%, 品质: ${SAMPLE_QUALITY_INFO[feature.quality].label}`"
+              ></div>
+            </div>
+            <div class="sample-time">{{ formatTime(sample.collectedAt) }}</div>
+          </div>
+          
+          <div 
+            v-for="i in emptySlots" 
+            :key="'empty-' + i" 
+            class="sample-card empty"
+          >
+            <span class="empty-hint">待采集</span>
           </div>
         </div>
+
+        <button 
+          class="sample-btn" 
+          :disabled="samples.length >= VOICEPRINT_CONFIG.GAME.SAMPLES_PER_TARGET || gameState.sonarCharges < VOICEPRINT_CONFIG.SONAR.PRECISE_SAMPLE_COST"
+          @click="handleCollectSample"
+        >
+          <span class="btn-icon">📡</span>
+          <span>精确采样</span>
+          <span class="cost">(-{{ VOICEPRINT_CONFIG.SONAR.PRECISE_SAMPLE_COST }} 🔊)</span>
+        </button>
       </div>
 
-      <div class="result-actions">
-        <button class="action-btn primary" @click="handleRestart">
-          <span>🔄 再来一次</span>
-        </button>
-        <button class="action-btn secondary" @click="handleHome">
-          <span>🏠 返回主页</span>
-        </button>
-        <button class="action-btn tertiary" @click="handleOpenCollection">
-          <span>📖 查看图鉴</span>
-        </button>
+      <div class="analysis-section" v-if="samples.length > 0">
+        <div class="section-header">
+          <span class="section-title">📈 风险评估</span>
+          <span class="risk-profile" :class="currentRiskClass">{{ currentRiskProfile.label }}</span>
+        </div>
+        
+        <div class="risk-metrics">
+          <div class="metric">
+            <span class="metric-label">成功率</span>
+            <span class="metric-value success">{{ Math.round(currentRiskProfile.successRate * 100) }}%</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">奖励倍数</span>
+            <span class="metric-value reward">×{{ currentRiskProfile.rewardMultiplier }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">惩罚倍数</span>
+            <span class="metric-value penalty">×{{ currentRiskProfile.penaltyMultiplier }}</span>
+          </div>
+        </div>
+
+        <div class="predicted-score">
+          <div class="score-row">
+            <span>预计正确得分</span>
+            <span class="positive">+{{ predictedReward.toLocaleString() }}</span>
+          </div>
+          <div class="score-row">
+            <span>预计错误扣分</span>
+            <span class="negative">-{{ predictedPenalty.toLocaleString() }}</span>
+          </div>
+          <div class="score-row high-risk" v-if="samples.length <= 2">
+            <span>高风险额外奖励</span>
+            <span class="positive">+{{ Math.round(predictedReward * 0.5).toLocaleString() }}</span>
+          </div>
+        </div>
+
+        <div class="verdict-buttons">
+          <button 
+            class="verdict-btn genuine"
+            @click="handleVerdict('genuine')"
+          >
+            <span class="btn-icon">✓</span>
+            <span>判定为真</span>
+          </button>
+          <button 
+            class="verdict-btn fake"
+            @click="handleVerdict('fake')"
+          >
+            <span class="btn-icon">✗</span>
+            <span>判定为假</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="hint" v-else>
+        <span class="hint-icon">💡</span>
+        <span>至少采集1个样本后才能进行判定</span>
       </div>
     </div>
-  </div>
 
-  <div v-if="showHint" class="game-hint">
-    <div class="hint-text">
-      💡 点击空白处释放声呐发现目标，点击已发现目标进行声纹分析
+    <div v-if="gameState.isGameOver && !showCollection && result" class="overlay">
+      <div class="result-content">
+        <div class="result-header">
+          <div class="rank-badge" :class="result.rank">
+            <span class="rank-letter">{{ result.rank }}</span>
+          </div>
+          <div class="result-title">
+            <span v-if="result.isNewRecord" class="new-record">🎊 新纪录！</span>
+            <span v-else>实验结束</span>
+          </div>
+        </div>
+
+        <div class="final-score">
+          <span class="score-label">最终得分</span>
+          <span class="score-value">{{ result.finalScore.toLocaleString() }}</span>
+        </div>
+
+        <div class="result-stats">
+          <div class="stat-row">
+            <span class="stat-label">到达等级</span>
+            <span class="stat-value">Lv.{{ result.level }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">正确判定</span>
+            <span class="stat-value correct">{{ result.correctVerdicts }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">错误判定</span>
+            <span class="stat-value wrong">{{ result.wrongVerdicts }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">准确率</span>
+            <span class="stat-value">{{ Math.round(result.accuracy * 100) }}%</span>
+          </div>
+          <div class="stat-row highlight">
+            <span class="stat-label">高风险奖励</span>
+            <span class="stat-value bonus">+{{ result.highRiskBonus.toLocaleString() }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">最高连击</span>
+            <span class="stat-value combo">×{{ result.maxConsecutiveCorrect }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">声呐使用</span>
+            <span class="stat-value">{{ result.totalSonarUsed }} 次</span>
+          </div>
+        </div>
+
+        <div class="session-unlocks" v-if="result.sessionUnlocks && result.sessionUnlocks.length > 0">
+          <div class="unlocks-title">📚 本次新发现</div>
+          <div class="unlocks-list">
+            <div 
+              v-for="unlock in result.sessionUnlocks" 
+              :key="unlock.name"
+              class="unlock-item"
+              :class="{ 'new': unlock.isNew }"
+            >
+              <span class="unlock-type">{{ unlock.type === 'creature' ? '🐟' : unlock.type === 'wreck' ? '⚓' : '⚠️' }}</span>
+              <span class="unlock-name">{{ unlock.name }}</span>
+              <span v-if="unlock.isNew" class="new-badge">NEW</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-actions">
+          <button class="action-btn primary" @click="handleRestart">
+            <span>🔄 再来一次</span>
+          </button>
+          <button class="action-btn secondary" @click="handleHome">
+            <span>🏠 返回主页</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showHint && gameState.isPlaying && !gameState.isGameOver && !selectedTarget" class="game-hint-float">
+      <div class="hint-text">
+        💡 点击空白处释放声呐发现目标，点击已发现目标进行声纹分析
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { 
   VoiceprintLabState, 
   VoiceprintLabEvent, 
@@ -314,8 +373,10 @@ import type {
   VoiceprintTarget,
   VoiceprintSample,
   VoiceprintVerdict,
+  CollectionData,
 } from '../types/game';
 import { VoiceprintLabSystem } from '../game/VoiceprintLabSystem';
+import { CollectionSystem } from '../game/CollectionSystem';
 import { 
   VOICEPRINT_CONFIG, 
   RISK_PROFILES, 
@@ -327,7 +388,7 @@ import {
 } from '../config/voiceprintLab';
 
 const props = defineProps<{
-  system: VoiceprintLabSystem;
+  collectionSystem: CollectionSystem;
   highScore: number;
 }>();
 
@@ -336,13 +397,39 @@ const emit = defineEmits<{
   (e: 'verdict', verdict: VoiceprintVerdict): void;
 }>();
 
-const gameState = ref<VoiceprintLabState>(props.system.getState());
+const canvasRef = ref<HTMLElement | null>(null);
+
+const gameState = ref<VoiceprintLabState>({
+  isPlaying: false,
+  isPaused: false,
+  isGameOver: false,
+  score: 0,
+  level: 1,
+  lives: 3,
+  maxLives: 3,
+  sonarCharges: VOICEPRINT_CONFIG.GAME.INITIAL_SONAR_CHARGES,
+  maxSonarCharges: VOICEPRINT_CONFIG.GAME.MAX_SONAR_CHARGES,
+  targets: [],
+  collectedSamples: [],
+  verdictHistory: [],
+  currentTargetId: null,
+  consecutiveCorrect: 0,
+  maxConsecutiveCorrect: 0,
+  highRiskBonus: 0,
+  correctVerdicts: 0,
+  wrongVerdicts: 0,
+  targetsAnalyzed: 0,
+  targetsRemaining: 0,
+  totalSonarUsed: 0,
+});
+
 const result = ref<VoiceprintResult | null>(null);
 const showCollection = ref(false);
-
 const gameStarted = ref(false);
 const showHint = ref(true);
 const selectedTargetId = ref<number | null>(null);
+
+let labSystem: VoiceprintLabSystem | null = null;
 
 const selectedTarget = computed<VoiceprintTarget | undefined>(() => {
   if (selectedTargetId.value === null) return undefined;
@@ -400,18 +487,10 @@ const handleGameOver = (gameResult: VoiceprintResult) => {
   result.value = gameResult;
 };
 
-props.system.setCallbacks(
-  handleStateChange,
-  () => {},
-  handleGameOver,
-  () => {}
-);
-
-props.system.setHighScore(props.highScore);
-
 const handleStart = () => {
   gameStarted.value = true;
-  props.system.startGame();
+  labSystem?.setHighScore(props.highScore);
+  labSystem?.startGame();
   setTimeout(() => {
     showHint.value = false;
   }, 6000);
@@ -419,19 +498,19 @@ const handleStart = () => {
 
 const handleCollectSample = () => {
   if (selectedTargetId.value !== null) {
-    props.system.collectSample(selectedTargetId.value);
-    gameState.value = props.system.getState();
+    labSystem?.collectSample(selectedTargetId.value);
+    gameState.value = labSystem?.getState() ?? gameState.value;
   }
 };
 
 const handleVerdict = (verdict: 'genuine' | 'fake') => {
   if (selectedTargetId.value !== null) {
-    const verdictResult = props.system.makeVerdict(selectedTargetId.value, verdict);
+    const verdictResult = labSystem?.makeVerdict(selectedTargetId.value, verdict);
     if (verdictResult) {
       emit('verdict', verdictResult);
     }
     selectedTargetId.value = null;
-    gameState.value = props.system.getState();
+    gameState.value = labSystem?.getState() ?? gameState.value;
   }
 };
 
@@ -443,7 +522,7 @@ const handleRestart = () => {
   showHint.value = true;
   selectedTargetId.value = null;
   result.value = null;
-  props.system.startGame();
+  labSystem?.startGame();
   setTimeout(() => {
     showHint.value = false;
   }, 4000);
@@ -462,8 +541,40 @@ const formatTime = (timestamp: number) => {
   return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
 };
 
-const selectTarget = (targetId: number) => {
-  selectedTargetId.value = targetId;
+const getEventPosition = (clientX: number, clientY: number) => {
+  if (!canvasRef.value || !labSystem) return null;
+  const rect = canvasRef.value.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  return labSystem.screenToWorld(x, y);
+};
+
+const processInteraction = (worldPos: { x: number; y: number }) => {
+  if (!labSystem) return;
+
+  const tapResult = labSystem.handleTap(worldPos);
+  if (tapResult.hit && tapResult.target) {
+    selectedTargetId.value = tapResult.target.id;
+    labSystem.selectTarget(tapResult.target.id);
+    gameState.value = labSystem.getState();
+  } else {
+    labSystem.fireSonar(worldPos);
+    gameState.value = labSystem.getState();
+  }
+};
+
+const handleClick = (e: MouseEvent) => {
+  const pos = getEventPosition(e.clientX, e.clientY);
+  if (!pos) return;
+  processInteraction(pos);
+};
+
+const handleTouch = (e: TouchEvent) => {
+  if (e.touches.length === 0) return;
+  const touch = e.touches[0];
+  const pos = getEventPosition(touch.clientX, touch.clientY);
+  if (!pos) return;
+  processInteraction(pos);
 };
 
 watch(() => gameState.value.currentTargetId, (newId) => {
@@ -472,12 +583,209 @@ watch(() => gameState.value.currentTargetId, (newId) => {
   }
 });
 
-defineExpose({
-  selectTarget,
+onMounted(() => {
+  if (canvasRef.value) {
+    labSystem = new VoiceprintLabSystem(canvasRef.value, props.collectionSystem);
+    labSystem.setCallbacks(
+      handleStateChange,
+      () => {},
+      handleGameOver,
+      () => {}
+    );
+    labSystem.setHighScore(props.highScore);
+    gameState.value = labSystem.getState();
+  }
+});
+
+onUnmounted(() => {
+  labSystem?.destroy();
+  labSystem = null;
 });
 </script>
 
 <style scoped>
+.voiceprint-lab {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000510;
+  overflow: hidden;
+}
+
+.game-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.game-canvas :deep(canvas) {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.touch-area {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  cursor: crosshair;
+}
+
+.game-hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.hud-panel {
+  background: rgba(0, 20, 40, 0.75);
+  border: 1px solid rgba(0, 255, 170, 0.25);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  backdrop-filter: blur(6px);
+}
+
+.hud-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hud-label {
+  font-size: 9px;
+  color: rgba(200, 220, 255, 0.5);
+  letter-spacing: 1px;
+}
+
+.hud-value {
+  font-size: 16px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
+.hud-value.score {
+  color: #00ffcc;
+}
+
+.hud-value.level {
+  color: #ffcc00;
+}
+
+.hearts {
+  display: flex;
+  gap: 2px;
+}
+
+.heart {
+  font-size: 16px;
+  color: #ff4466;
+  text-shadow: 0 0 6px rgba(255, 68, 102, 0.5);
+}
+
+.heart.empty {
+  color: rgba(255, 68, 102, 0.3);
+  text-shadow: none;
+}
+
+.hud-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sonar-bar {
+  background: rgba(0, 20, 40, 0.75);
+  border: 1px solid rgba(0, 170, 255, 0.25);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  backdrop-filter: blur(6px);
+}
+
+.sonar-label {
+  font-size: 9px;
+  color: rgba(0, 200, 255, 0.6);
+  letter-spacing: 1px;
+}
+
+.sonar-charges {
+  display: flex;
+  gap: 4px;
+}
+
+.sonar-charge {
+  flex: 1;
+  height: 8px;
+  background: rgba(0, 50, 80, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  transition: opacity 0.3s;
+}
+
+.sonar-charge.active .charge-inner {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #00aaff, #00ffcc);
+  box-shadow: 0 0 8px rgba(0, 255, 200, 0.5);
+  animation: sonar-pulse 2s ease-in-out infinite;
+}
+
+@keyframes sonar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.progress {
+  background: rgba(0, 20, 40, 0.75);
+  border: 1px solid rgba(0, 255, 170, 0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(6px);
+}
+
+.progress-label {
+  font-size: 10px;
+  color: rgba(200, 220, 255, 0.6);
+  font-family: 'Courier New', monospace;
+}
+
+.combo-badge {
+  font-size: 11px;
+  font-weight: bold;
+  color: #ff8844;
+  padding: 2px 8px;
+  background: rgba(255, 136, 68, 0.15);
+  border-radius: 10px;
+  animation: combo-glow 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes combo-glow {
+  from { box-shadow: 0 0 4px rgba(255, 136, 68, 0.3); }
+  to { box-shadow: 0 0 12px rgba(255, 136, 68, 0.6); }
+}
+
 .overlay {
   position: absolute;
   inset: 0;
@@ -633,10 +941,6 @@ defineExpose({
 
 .instruction-item.warn {
   color: #ffcc00;
-}
-
-.instruction-item.danger {
-  color: #ff6666;
 }
 
 .risk-title {
@@ -1346,19 +1650,9 @@ defineExpose({
   background: rgba(0, 60, 90, 0.6);
 }
 
-.action-btn.tertiary {
-  background: rgba(60, 40, 80, 0.6);
-  border: 1px solid rgba(255, 102, 255, 0.3);
-  color: #ff66ff;
-}
-
-.action-btn.tertiary:hover {
-  background: rgba(80, 50, 100, 0.6);
-}
-
-.game-hint {
+.game-hint-float {
   position: absolute;
-  top: 80px;
+  top: 120px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 30, 50, 0.9);
@@ -1367,6 +1661,7 @@ defineExpose({
   padding: 10px 16px;
   z-index: 30;
   animation: hint-fade 0.5s ease;
+  pointer-events: none;
 }
 
 @keyframes hint-fade {
@@ -1374,7 +1669,7 @@ defineExpose({
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-.hint-text {
+.game-hint-float .hint-text {
   font-size: 11px;
   color: rgba(200, 220, 255, 0.8);
   text-align: center;
