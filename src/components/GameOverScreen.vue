@@ -27,7 +27,7 @@
         </div>
       </div>
 
-      <div v-if="maxCombo && maxCombo > 0" class="combo-stats-section">
+      <div v-if="(maxCombo && maxCombo > 0) || (maxSonarCombo && maxSonarCombo > 0) || (comboBonusPoints && comboBonusPoints > 0) || (comboSonarCharges && comboSonarCharges > 0)" class="combo-stats-section">
         <div class="combo-stats-title">
           <span class="combo-stats-icon">⚡</span>
           <span>连击统计</span>
@@ -226,11 +226,17 @@ const effectiveScore = computed(() => {
 
 const comboBonusForRank = computed(() => {
   const maxCombo = props.maxCombo ?? 0;
-  if (maxCombo >= 20) return 300;
-  if (maxCombo >= 15) return 200;
-  if (maxCombo >= 10) return 100;
-  if (maxCombo >= 5) return 50;
-  return 0;
+  const maxSonarCombo = props.maxSonarCombo ?? 0;
+  let bonus = 0;
+  if (maxCombo >= 20) bonus += 300;
+  else if (maxCombo >= 15) bonus += 200;
+  else if (maxCombo >= 10) bonus += 100;
+  else if (maxCombo >= 5) bonus += 50;
+  if (maxSonarCombo >= 10) bonus += 150;
+  else if (maxSonarCombo >= 8) bonus += 100;
+  else if (maxSonarCombo >= 6) bonus += 60;
+  else if (maxSonarCombo >= 4) bonus += 30;
+  return bonus;
 });
 
 const rank = computed(() => {

@@ -364,6 +364,8 @@ export class ScoreSystem {
         this.clearComboTimers();
       }
     } else {
+      this.increaseCombo(target.position, target.type);
+      
       let typeMultiplier = 1.0;
       if (target.type === 'wreck') {
         typeMultiplier = GAME_CONFIG.COMBO.WRECK_BONUS_MULTIPLIER;
@@ -378,8 +380,6 @@ export class ScoreSystem {
       
       this.state.score += adjustedPoints;
       if (this.state.score < 0) this.state.score = 0;
-      
-      this.increaseCombo(target.position, target.type);
       
       this.onScoreEvent?.({
         points: adjustedPoints,
