@@ -48,8 +48,21 @@
       @back="closePrep"
     />
 
+    <VoyageSettlement
+      v-if="showVoyageSettlement && settlementData && gameState.isGameOver && !showCollection && !isRelayMode"
+      :score="gameState.score"
+      :level="gameState.level"
+      :discovered="gameState.discoveredTargets"
+      :total-targets="gameState.totalTargets"
+      :trajectory="settlementData.trajectory"
+      :score-breakdown="settlementData.scoreBreakdown"
+      :hit-rate="settlementData.hitRate"
+      :anomalies="settlementData.anomalies"
+      @continue="handleVoyageSettlementContinue"
+    />
+
     <GameOverScreen
-      v-if="gameState.isGameOver && !showCollection && !isRelayMode"
+      v-if="gameState.isGameOver && !showCollection && !isRelayMode && !showVoyageSettlement"
       :score="gameState.score"
       :level="gameState.level"
       :discovered="gameState.discoveredTargets"
@@ -106,7 +119,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, TrajectoryPoint, ScoreBreakdown, HitRateStats, AnomalyEvent } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -126,6 +139,7 @@ import RelayGameHUD from './components/RelayGameHUD.vue';
 import RelayGameOver from './components/RelayGameOver.vue';
 import SalvageEvent from './components/SalvageEvent.vue';
 import VoiceprintLab from './components/VoiceprintLab.vue';
+import VoyageSettlement from './components/VoyageSettlement.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -157,6 +171,14 @@ const activeOceanEvents = ref<OceanEvent[]>([]);
 const activeMissions = ref<Mission[]>([]);
 const missionResult = ref<MissionResult | null>(null);
 const comboStats = ref<ComboStats | null>(null);
+
+const showVoyageSettlement = ref(false);
+const settlementData = ref<{
+  trajectory: TrajectoryPoint[];
+  scoreBreakdown: ScoreBreakdown;
+  hitRate: HitRateStats;
+  anomalies: AnomalyEvent[];
+} | null>(null);
 
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
@@ -257,6 +279,11 @@ const gameState = reactive<GameState>({
   maxSonarCharges: 5,
   discoveredTargets: 0,
   totalTargets: 0,
+  combo: 0,
+  maxCombo: 0,
+  comboMultiplier: 1.0,
+  sonarCombo: 0,
+  maxSonarCombo: 0,
 });
 
 let gameController: GameController | null = null;
@@ -374,6 +401,17 @@ const handleGameOver = (finalScore: number) => {
   if (gameController) {
     missionResult.value = gameController.getMissionSystem().getResult();
     comboStats.value = gameController.getComboStats();
+  }
+
+  const lastRecord = voyageArchiveSystem.getRecords()[0];
+  if (lastRecord) {
+    settlementData.value = {
+      trajectory: lastRecord.trajectory,
+      scoreBreakdown: lastRecord.scoreBreakdown,
+      hitRate: lastRecord.hitRate,
+      anomalies: lastRecord.anomalies,
+    };
+    showVoyageSettlement.value = true;
   }
 
   if (finalScore > highScore.value) {
@@ -584,8 +622,14 @@ const closePrep = () => {
 };
 
 const handleRestart = () => {
+  showVoyageSettlement.value = false;
+  settlementData.value = null;
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
+};
+
+const handleVoyageSettlementContinue = () => {
+  showVoyageSettlement.value = false;
 };
 
 const handleHome = () => {
@@ -603,6 +647,11 @@ const handleHome = () => {
     maxSonarCharges: 5,
     discoveredTargets: 0,
     totalTargets: 0,
+    combo: 0,
+    maxCombo: 0,
+    comboMultiplier: 1.0,
+    sonarCombo: 0,
+    maxSonarCombo: 0,
   });
   Object.assign(relayGameState, {
     isPlaying: false,
@@ -638,6 +687,8 @@ const handleHome = () => {
   activeMissions.value = [];
   missionResult.value = null;
   comboStats.value = null;
+  showVoyageSettlement.value = false;
+  settlementData.value = null;
   refreshCollection();
 
   if (relaySystem) {
@@ -743,7 +794,7 @@ onMounted(() => {
   salvageEventSystem.setEventCallback(handleSalvageEvent);
 
   if (canvasRef.value) {
-    gameController = new GameController(canvasRef.value, collectionSystem, salvageEventSystem);
+    gameController = new GameController(canvasRef.value, collectionSystem, salvageEventSystem, voyageArchiveSystem);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,

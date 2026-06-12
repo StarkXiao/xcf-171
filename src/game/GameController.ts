@@ -10,6 +10,7 @@ import { CollectionSystem } from './CollectionSystem';
 import { SalvageEventSystem } from './SalvageEventSystem';
 import { OceanEventSystem } from './OceanEventSystem';
 import { MissionSystem } from './MissionSystem';
+import { VoyageArchiveSystem } from './VoyageArchiveSystem';
 import * as PIXI from 'pixi.js';
 
 export class GameController {
@@ -21,6 +22,7 @@ export class GameController {
   private salvageEvent: SalvageEventSystem | null;
   private oceanEventSystem: OceanEventSystem;
   private missionSystem: MissionSystem;
+  private voyageArchive: VoyageArchiveSystem | null = null;
 
   private targets: Target[] = [];
   private playerPosition: Position;
@@ -45,10 +47,11 @@ export class GameController {
   private onMissionEffectsChanged?: (effects: MissionEffect[]) => void;
   private onComboEvent?: (event: ComboEvent) => void;
 
-  constructor(container: HTMLElement, collectionSystem?: CollectionSystem, salvageSystem?: SalvageEventSystem) {
+  constructor(container: HTMLElement, collectionSystem?: CollectionSystem, salvageSystem?: SalvageEventSystem, voyageArchiveSystem?: VoyageArchiveSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
     this.currentEffects = computeLoadoutEffects(this.currentLoadout);
     this.salvageEvent = salvageSystem ?? null;
+    this.voyageArchive = voyageArchiveSystem ?? null;
 
     this.renderer = new MapRenderer(container, GAME_CONFIG.MAP_WIDTH, GAME_CONFIG.MAP_HEIGHT);
     this.sonar = new SonarSystem();
@@ -332,6 +335,10 @@ export class GameController {
 
     this.applyMissionStartEffects();
 
+    if (this.voyageArchive) {
+      this.voyageArchive.startVoyage('normal', this.currentLoadout);
+    }
+
     if (!this.isInitialized) {
       this.isInitialized = true;
       this.startGameLoop();
@@ -417,9 +424,16 @@ export class GameController {
       const position = discoveredPositions[i] || undefined;
       this.scoreSystem.discoverTarget(position);
       this.missionSystem.onDiscoverTarget();
+      if (this.voyageArchive && position) {
+        this.voyageArchive.recordDiscovered(this.scoreSystem.getState().discoveredTargets);
+      }
     }
 
     this.renderer.updateCamera(this.playerPosition.y);
+
+    if (this.voyageArchive) {
+      this.voyageArchive.recordTrajectory(this.playerPosition);
+    }
 
     const now = Date.now();
     const rechargeModifier = this.getSonarRechargeModifier();
@@ -473,6 +487,20 @@ export class GameController {
     
     this.sonar.emitSonar(worldPos);
     this.renderer.addDiscoveredArea(worldPos, baseRadius * radiusModifier);
+
+    if (this.voyageArchive) {
+      const state = this.scoreSystem.getState();
+      const discoveredBefore = state.discoveredTargets;
+      this.voyageArchive.recordSonarFired(worldPos, discoveredBefore, discoveredBefore);
+      this.voyageArchive.recordScoreEvent({
+        points: 0,
+        targetName: '声呐释放',
+        type: 'bonus',
+        position: worldPos,
+      }, state);
+      this.voyageArchive.recordTrajectory(worldPos, 'sonar');
+    }
+
     return true;
   }
 
@@ -517,6 +545,23 @@ export class GameController {
         const state = this.scoreSystem.getState();
         this.missionSystem.onCollectTarget(target, state.level);
 
+        if (this.voyageArchive) {
+          this.voyageArchive.recordTap(worldPos, true);
+          this.voyageArchive.recordScoreEvent({
+            points: adjustedPoints,
+            targetName: target.name,
+            type: target.type === 'danger' ? 'damage' : 'collect',
+            position: target.position,
+          }, state);
+          this.voyageArchive.recordTargetInfo(state.totalTargets);
+          this.voyageArchive.recordDiscovered(state.discoveredTargets);
+          this.voyageArchive.recordTrajectory(worldPos, target.type === 'danger' ? 'damage' : 'collect');
+          this.voyageArchive.updateGameState(state);
+          if (target.type === 'danger') {
+            this.voyageArchive.recordDamage(target.position, target.name, 1);
+          }
+        }
+
         const eventWreck = this.eventWreckMap.get(target.id);
         if (eventWreck && this.salvageEvent) {
           this.salvageEvent.recordWreckCollected(eventWreck, adjustedPoints);
@@ -532,6 +577,11 @@ export class GameController {
           this.missionSystem.onLevelUp(levelUpState.level);
           this.applyMissionStartEffects();
 
+          if (this.voyageArchive) {
+            this.voyageArchive.recordLevelUp(levelUpState.level);
+            this.voyageArchive.recordTargetInfo(levelUpState.totalTargets);
+          }
+
           const newTargets = this.targetGenerator.generateTargets(levelUpState.level);
           this.targets.push(...newTargets);
           this.injectEventWrecks(levelUpState.level);
@@ -545,11 +595,17 @@ export class GameController {
           this.scoreSystem.endGame();
           this.salvageEvent?.recordExpeditionCompleted();
           this.oceanEventSystem.stop();
+          if (this.voyageArchive) {
+            this.voyageArchive.finishVoyage(this.scoreSystem.getState(), false, false);
+          }
           this.onGameOver?.(this.scoreSystem.getFinalScore());
         }
 
         return { hit: true, target };
       }
+    }
+    if (this.voyageArchive) {
+      this.voyageArchive.recordTap(worldPos, false);
     }
     return { hit: false };
   }
