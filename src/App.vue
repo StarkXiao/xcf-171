@@ -25,12 +25,14 @@
       :relay-high-score="relayHighScore"
       :voiceprint-high-score="voiceprintHighScore"
       :event-state="salvageEventState"
+      :current-ocean-theme="currentOceanTheme"
       @start="handleStart"
       @open-collection="openCollection"
       @open-prep="openPrep"
       @open-relay-mode="openRelayIntro"
       @open-salvage-event="openSalvageEvent"
       @open-voiceprint-lab="openVoiceprintLab"
+      @select-ocean-theme="handleSelectOceanTheme"
     />
 
     <RelayModeIntro
@@ -71,6 +73,7 @@
       :combo-sonar-charges="comboStats?.comboSonarCharges"
       :expedition-reward="lastExpeditionReward"
       :total-expedition-points="totalExpeditionPoints"
+      :ocean-theme-id="currentOceanTheme"
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
@@ -117,7 +120,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward, VoyageRecord } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward, VoyageRecord, OceanThemeId } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -126,6 +129,7 @@ import { SalvageEventSystem } from './game/SalvageEventSystem';
 import { ResearchStationSystem } from './game/ResearchStationSystem';
 import type { ScoreEvent } from './game/ScoreSystem';
 import { DEFAULT_LOADOUT, applyTechEffects, computeLoadoutEffects } from './config/expeditionConfig';
+import { DEFAULT_OCEAN_THEME_ID } from './config/oceanThemes';
 import GameHUD from './components/GameHUD.vue';
 import StartScreen from './components/StartScreen.vue';
 import GameOverScreen from './components/GameOverScreen.vue';
@@ -178,6 +182,18 @@ const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
 const salvageEventSystem = new SalvageEventSystem();
 const researchStationSystem = new ResearchStationSystem();
+
+const currentOceanTheme = ref<OceanThemeId>(DEFAULT_OCEAN_THEME_ID);
+
+const handleSelectOceanTheme = (themeId: OceanThemeId) => {
+  currentOceanTheme.value = themeId;
+  if (gameController) {
+    gameController.setOceanTheme(themeId);
+  }
+  try {
+    localStorage.setItem('deepSeaSonar_oceanTheme', themeId);
+  } catch (_e) {}
+};
 
 const unlockedDetectors = computed<DetectorTier[]>(() => {
   const detectors: DetectorTier[] = ['basic'];
@@ -273,6 +289,11 @@ const gameState = reactive<GameState>({
   maxSonarCharges: 5,
   discoveredTargets: 0,
   totalTargets: 0,
+  combo: 0,
+  maxCombo: 0,
+  comboMultiplier: 1.0,
+  sonarCombo: 0,
+  maxSonarCombo: 0,
 });
 
 let gameController: GameController | null = null;
@@ -617,6 +638,7 @@ const closePrep = () => {
 };
 
 const handleRestart = () => {
+  gameController?.setOceanTheme(currentOceanTheme.value);
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
   voyageArchiveSystem.startVoyage('normal', currentLoadout.value);
@@ -640,6 +662,11 @@ const handleHome = () => {
     maxSonarCharges: 5,
     discoveredTargets: 0,
     totalTargets: 0,
+    combo: 0,
+    maxCombo: 0,
+    comboMultiplier: 1.0,
+    sonarCombo: 0,
+    maxSonarCombo: 0,
   });
   Object.assign(relayGameState, {
     isPlaying: false,
@@ -767,6 +794,13 @@ onMounted(() => {
         }
       } catch (_e) {}
     }
+    const savedOceanTheme = localStorage.getItem('deepSeaSonar_oceanTheme');
+    if (savedOceanTheme) {
+      const validThemes: OceanThemeId[] = ['shallow', 'abyss', 'polar', 'volcanic', 'coral'];
+      if (validThemes.includes(savedOceanTheme as OceanThemeId)) {
+        currentOceanTheme.value = savedOceanTheme as OceanThemeId;
+      }
+    }
     const savedRelayScore = localStorage.getItem('deepSeaSonar_relayHighScore');
     if (savedRelayScore) {
       try {
@@ -789,6 +823,7 @@ onMounted(() => {
 
   if (canvasRef.value) {
     gameController = new GameController(canvasRef.value, collectionSystem, salvageEventSystem);
+    gameController.setOceanTheme(currentOceanTheme.value);
     gameController.setLoadout(currentLoadout.value);
     gameController.setCallbacks(
       updateState,

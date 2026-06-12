@@ -1,7 +1,8 @@
-import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect, ComboEvent } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect, ComboEvent, OceanThemeId } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { OCEAN_EVENT_CONFIG } from '../config/oceanEvents';
 import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
+import { getOceanTheme, DEFAULT_OCEAN_THEME_ID } from '../config/oceanThemes';
 import { MapRenderer } from './MapRenderer';
 import { SonarSystem } from './SonarSystem';
 import { TargetGenerator } from './TargetGenerator';
@@ -31,6 +32,7 @@ export class GameController {
   private currentLoadout: ExpeditionLoadout;
   private currentEffects: LoadoutEffects;
   private eventWreckMap: Map<number, SalvageEventWreck> = new Map();
+  private oceanThemeId: OceanThemeId = DEFAULT_OCEAN_THEME_ID;
 
   private onStateChange?: (state: GameState) => void;
   private onScoreEvent?: (event: ScoreEvent) => void;
@@ -264,6 +266,21 @@ export class GameController {
     return { ...this.currentLoadout };
   }
 
+  setOceanTheme(themeId: OceanThemeId) {
+    this.oceanThemeId = themeId;
+    this.renderer.setOceanTheme(themeId);
+    this.targetGenerator.setOceanTheme(themeId);
+    this.scoreSystem.setOceanTheme(themeId);
+  }
+
+  getOceanThemeId(): OceanThemeId {
+    return this.oceanThemeId;
+  }
+
+  getCurrentOceanTheme() {
+    return getOceanTheme(this.oceanThemeId);
+  }
+
   setCallbacks(
     onStateChange: (state: GameState) => void,
     onScoreEvent: (event: ScoreEvent) => void,
@@ -433,6 +450,11 @@ export class GameController {
 
   private getSonarRechargeModifier(): number {
     let modifier = 1;
+    const theme = getOceanTheme(this.oceanThemeId);
+    const sonarRechargeRule = theme.riskRules.find(r => r.type === 'sonar_recharge');
+    if (sonarRechargeRule) {
+      modifier *= sonarRechargeRule.value;
+    }
     const currentEvent = this.oceanEventSystem.isPositionInEvent(this.playerPosition, 'current');
     if (currentEvent) {
       modifier *= 1.3;

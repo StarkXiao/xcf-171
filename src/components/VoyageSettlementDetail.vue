@@ -260,7 +260,7 @@
 
               <div class="reward-total-points">
                 <span>累计总积分：</span>
-                <span class="tp-value">{{ formatNumber(totalExpeditionPoints) }}</span>
+                <span class="tp-value">{{ formatNumber(totalExpeditionPoints ?? 0) }}</span>
               </div>
             </div>
 

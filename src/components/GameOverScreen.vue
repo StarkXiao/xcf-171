@@ -104,9 +104,23 @@
         </div>
       </div>
 
+      <div v-if="oceanTheme" class="ocean-theme-info">
+        <div class="ocean-theme-header">
+          <span class="ocean-theme-icon">{{ oceanTheme.icon }}</span>
+          <div class="ocean-theme-details">
+            <div class="ocean-theme-name">{{ oceanTheme.name }}</div>
+            <div class="ocean-theme-subtitle">{{ oceanTheme.subtitle }}</div>
+          </div>
+        </div>
+      </div>
+
       <div class="rank-display">
         <span class="rank-label">评价等级</span>
         <span class="rank-badge" :class="rankClass">{{ rank }}</span>
+      </div>
+
+      <div v-if="rankComment" class="rank-comment">
+        {{ rankComment }}
       </div>
 
       <div v-if="expeditionReward" class="expedition-reward-section">
@@ -188,7 +202,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { UnlockEvent, ExpeditionReward, MissionResult } from '../types/game';
+import type { UnlockEvent, ExpeditionReward, MissionResult, OceanThemeId, OceanTheme } from '../types/game';
+import { getOceanTheme } from '../config/oceanThemes';
 
 const props = defineProps<{
   score: number;
@@ -209,6 +224,7 @@ const props = defineProps<{
   maxSonarCombo?: number;
   comboBonusPoints?: number;
   comboSonarCharges?: number;
+  oceanThemeId?: OceanThemeId;
 }>();
 
 defineEmits<{
@@ -217,6 +233,11 @@ defineEmits<{
   (e: 'openCollection'): void;
   (e: 'openLeaderboard'): void;
 }>();
+
+const oceanTheme = computed<OceanTheme | null>(() => {
+  if (!props.oceanThemeId) return null;
+  return getOceanTheme(props.oceanThemeId);
+});
 
 const isNewHighScore = computed(() => props.score >= props.highScore && props.score > 0);
 
@@ -241,11 +262,26 @@ const comboBonusForRank = computed(() => {
 
 const rank = computed(() => {
   const s = effectiveScore.value + comboBonusForRank.value;
+  if (oceanTheme.value) {
+    const thresholds = oceanTheme.value.rankThresholds;
+    if (s >= thresholds.S) return 'S';
+    if (s >= thresholds.A) return 'A';
+    if (s >= thresholds.B) return 'B';
+    if (s >= thresholds.C) return 'C';
+    return 'D';
+  }
   if (s >= 3000) return 'S';
   if (s >= 2000) return 'A';
   if (s >= 1000) return 'B';
   if (s >= 500) return 'C';
   return 'D';
+});
+
+const rankComment = computed(() => {
+  if (!oceanTheme.value) return null;
+  const comments = oceanTheme.value.settlementComments[rank.value];
+  if (!comments || comments.length === 0) return null;
+  return comments[Math.floor(Math.random() * comments.length)];
 });
 
 const rankClass = computed(() => ({
@@ -448,6 +484,69 @@ const formatNumber = (n: number | undefined | null) => (n ?? 0).toLocaleString()
   background: linear-gradient(135deg, #666, #444);
   color: #ccc;
   box-shadow: 0 0 10px rgba(100, 100, 100, 0.3);
+}
+
+.ocean-theme-info {
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(0, 60, 100, 0.4), rgba(0, 30, 60, 0.5));
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.ocean-theme-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ocean-theme-icon {
+  font-size: 36px;
+  flex-shrink: 0;
+}
+
+.ocean-theme-details {
+  flex: 1;
+  text-align: left;
+}
+
+.ocean-theme-name {
+  font-size: 18px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.95);
+  letter-spacing: 2px;
+}
+
+.ocean-theme-subtitle {
+  font-size: 10px;
+  color: rgba(0, 255, 200, 0.5);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.rank-comment {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: rgba(0, 40, 60, 0.4);
+  border-left: 3px solid rgba(0, 255, 170, 0.5);
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: rgba(200, 240, 255, 0.85);
+  font-style: italic;
+  line-height: 1.6;
+  animation: fade-in-comment 0.8s ease-out;
+}
+
+@keyframes fade-in-comment {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .restart-btn {

@@ -1114,4 +1114,74 @@ export type VoiceprintLabEvent =
   | { type: 'life_lost'; reason: string }
   | { type: 'bonus_gained'; points: number; reason: string };
 
+export type OceanThemeId = 'shallow' | 'abyss' | 'polar' | 'volcanic' | 'coral';
+
+export interface OceanThemeColors {
+  background: number;
+  grid: number;
+  sonar: number;
+  creature: number;
+  wreck: number;
+  danger: number;
+  player: number;
+  combo: {
+    LOW: number;
+    MEDIUM: number;
+    HIGH: number;
+    EXTREME: number;
+    LEGENDARY: number;
+  };
+}
+
+export interface OceanThemeTargetPool {
+  creatureNames: string[];
+  wreckNames: string[];
+  dangerNames: string[];
+}
+
+export interface OceanThemeScoreCoefficients {
+  creature: number;
+  wreck: number;
+  danger: number;
+  global: number;
+}
+
+export interface OceanThemeRiskRule {
+  type: 'danger_count' | 'danger_damage' | 'lives_initial' | 'sonar_recharge' | 'target_density';
+  value: number;
+  description: string;
+}
+
+export interface OceanTheme {
+  id: OceanThemeId;
+  name: string;
+  subtitle: string;
+  description: string;
+  icon: string;
+  difficulty: 'easy' | 'normal' | 'hard' | 'extreme';
+  colors: OceanThemeColors;
+  targetPool: OceanThemeTargetPool;
+  scoreCoefficients: OceanThemeScoreCoefficients;
+  riskRules: OceanThemeRiskRule[];
+  instructions: string[];
+  rankThresholds: {
+    S: number;
+    A: number;
+    B: number;
+    C: number;
+  };
+  settlementComments: {
+    S: string[];
+    A: string[];
+    B: string[];
+    C: string[];
+    D: string[];
+  };
+}
+
+export interface OceanThemeState {
+  currentThemeId: OceanThemeId;
+  availableThemes: OceanThemeId[];
+}
+
 

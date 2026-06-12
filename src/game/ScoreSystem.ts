@@ -1,5 +1,6 @@
-import type { GameState, Target, ComboEvent, ComboStats } from '../types/game';
+import type { GameState, Target, ComboEvent, ComboStats, OceanThemeId } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
+import { getOceanTheme, DEFAULT_OCEAN_THEME_ID } from '../config/oceanThemes';
 
 export interface ScoreEvent {
   points: number;
@@ -33,6 +34,7 @@ export class ScoreSystem {
     dangerLifePenaltyMul: number;
     dangerScorePenaltyMul: number;
   };
+  private oceanThemeId: OceanThemeId = DEFAULT_OCEAN_THEME_ID;
 
   private lastCollectTime: number = 0;
   private lastSonarDiscoveryTime: number = 0;
@@ -70,6 +72,43 @@ export class ScoreSystem {
       dangerLifePenaltyMul: params.dangerLifePenaltyMul ?? this.params.dangerLifePenaltyMul,
       dangerScorePenaltyMul: params.dangerScorePenaltyMul ?? this.params.dangerScorePenaltyMul,
     };
+  }
+
+  setOceanTheme(themeId: OceanThemeId) {
+    this.oceanThemeId = themeId;
+    const theme = getOceanTheme(themeId);
+    
+    const dangerDamageRule = theme.riskRules.find(r => r.type === 'danger_damage');
+    const livesRule = theme.riskRules.find(r => r.type === 'lives_initial');
+    const sonarRechargeRule = theme.riskRules.find(r => r.type === 'sonar_recharge');
+    
+    if (dangerDamageRule) {
+      this.params.dangerLifePenaltyMul *= dangerDamageRule.value;
+      this.params.dangerScorePenaltyMul *= dangerDamageRule.value;
+    }
+    if (livesRule) {
+      this.params.initialLivesBonus += livesRule.value;
+    }
+  }
+
+  getOceanThemeId(): OceanThemeId {
+    return this.oceanThemeId;
+  }
+
+  getRank(score: number, comboBonus: number = 0): 'S' | 'A' | 'B' | 'C' | 'D' {
+    const theme = getOceanTheme(this.oceanThemeId);
+    const totalScore = score + comboBonus;
+    if (totalScore >= theme.rankThresholds.S) return 'S';
+    if (totalScore >= theme.rankThresholds.A) return 'A';
+    if (totalScore >= theme.rankThresholds.B) return 'B';
+    if (totalScore >= theme.rankThresholds.C) return 'C';
+    return 'D';
+  }
+
+  getSettlementComment(rank: string): string {
+    const theme = getOceanTheme(this.oceanThemeId);
+    const comments = theme.settlementComments[rank as keyof typeof theme.settlementComments] || theme.settlementComments.D;
+    return comments[Math.floor(Math.random() * comments.length)];
   }
 
   private createInitialState(): GameState {

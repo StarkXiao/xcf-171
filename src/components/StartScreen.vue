@@ -6,7 +6,53 @@
         <div class="subtitle">Deep Sea Sonar Echo</div>
       </div>
 
-      <div class="sonar-animation">
+      <div class="theme-selector" @click="showThemeSelector = !showThemeSelector">
+        <div class="theme-current">
+          <span class="theme-icon">{{ currentTheme.icon }}</span>
+          <div class="theme-info">
+            <div class="theme-name">{{ currentTheme.name }}</div>
+            <div class="theme-subtitle">{{ currentTheme.subtitle }}</div>
+          </div>
+          <span class="difficulty-badge" :style="{ color: getDifficultyColor(currentTheme.difficulty), borderColor: getDifficultyColor(currentTheme.difficulty) }">
+            {{ getDifficultyLabel(currentTheme.difficulty) }}
+          </span>
+          <span class="theme-arrow" :class="{ expanded: showThemeSelector }">›</span>
+        </div>
+        <div class="theme-dropdown" v-show="showThemeSelector">
+          <div
+            v-for="theme in allThemes"
+            :key="theme.id"
+            class="theme-option"
+            :class="{ active: theme.id === currentTheme.id }"
+            @click.stop="selectTheme(theme.id)"
+          >
+            <span class="theme-option-icon">{{ theme.icon }}</span>
+            <div class="theme-option-info">
+              <div class="theme-option-name">{{ theme.name }}</div>
+              <div class="theme-option-desc">{{ theme.description }}</div>
+            </div>
+            <span class="theme-option-difficulty" :style="{ color: getDifficultyColor(theme.difficulty) }">
+              {{ getDifficultyLabel(theme.difficulty) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="theme-description">
+        {{ currentTheme.description }}
+      </div>
+
+      <div class="risk-rules" v-if="currentTheme.riskRules.length > 0">
+        <div class="risk-rules-title">海域特性</div>
+        <div class="risk-rules-list">
+          <div v-for="(rule, index) in currentTheme.riskRules" :key="index" class="risk-rule-item">
+            <span class="risk-rule-icon">{{ rule.type === 'danger_count' ? '⚠️' : rule.type === 'danger_damage' ? '💔' : rule.type === 'lives_initial' ? '❤️' : rule.type === 'sonar_recharge' ? '🔋' : '🎯' }}</span>
+            <span class="risk-rule-text">{{ rule.description }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sonar-animation" :style="{ '--sonar-color': hexToRgb(currentTheme.colors.sonar) }">
         <div class="sonar-ring ring-1"></div>
         <div class="sonar-ring ring-2"></div>
         <div class="sonar-ring ring-3"></div>
@@ -14,32 +60,24 @@
       </div>
 
       <div class="instructions">
-        <div class="instruction-item">
-          <span class="icon">🔊</span>
-          <span>点击地图释放声呐波，探测隐藏目标</span>
-        </div>
-        <div class="instruction-item">
-          <span class="icon">🐟</span>
-          <span>点击回波，收集生物和残骸获得分数</span>
-        </div>
-        <div class="instruction-item">
-          <span class="icon">⚠️</span>
-          <span>避开红色危险水雷，否则损失生命</span>
+        <div class="instruction-item" v-for="(instruction, index) in currentTheme.instructions" :key="index">
+          <span class="icon">{{ instruction.charAt(0) }}</span>
+          <span>{{ instruction.slice(2) }}</span>
         </div>
       </div>
 
       <div class="legend">
         <div class="legend-item">
-          <span class="legend-dot creature"></span>
-          <span>海洋生物 +100</span>
+          <span class="legend-dot" :style="{ background: hexToRgb(currentTheme.colors.creature), boxShadow: `0 0 8px ${hexToRgb(currentTheme.colors.creature)}80` }"></span>
+          <span>海洋生物 +{{ creaturePoints }}</span>
         </div>
         <div class="legend-item">
-          <span class="legend-dot wreck"></span>
-          <span>残骸遗迹 +200</span>
+          <span class="legend-dot" :style="{ background: hexToRgb(currentTheme.colors.wreck), boxShadow: `0 0 8px ${hexToRgb(currentTheme.colors.wreck)}80` }"></span>
+          <span>残骸遗迹 +{{ wreckPoints }}</span>
         </div>
         <div class="legend-item">
-          <span class="legend-dot danger"></span>
-          <span>危险水雷 -150</span>
+          <span class="legend-dot" :style="{ background: hexToRgb(currentTheme.colors.danger), boxShadow: `0 0 8px ${hexToRgb(currentTheme.colors.danger)}80` }"></span>
+          <span>危险目标 {{ dangerPenalty }}</span>
         </div>
       </div>
 
@@ -134,8 +172,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { SalvageEventState } from '../types/game';
+import { computed, ref } from 'vue';
+import type { SalvageEventState, OceanTheme, OceanThemeId } from '../types/game';
+import { getAllOceanThemes, getDifficultyColor, getDifficultyLabel, getOceanTheme, DEFAULT_OCEAN_THEME_ID } from '../config/oceanThemes';
 
 const props = defineProps<{
   highScore: number;
@@ -150,16 +189,52 @@ const props = defineProps<{
   relayHighScore?: number;
   voiceprintHighScore?: number;
   eventState?: SalvageEventState | null;
+  currentOceanTheme?: OceanThemeId;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'start'): void;
   (e: 'openCollection'): void;
   (e: 'openPrep'): void;
   (e: 'openRelayMode'): void;
   (e: 'openSalvageEvent'): void;
   (e: 'openVoiceprintLab'): void;
+  (e: 'selectOceanTheme', themeId: OceanThemeId): void;
 }>();
+
+const showThemeSelector = ref(false);
+const allThemes = getAllOceanThemes();
+
+const currentTheme = computed<OceanTheme>(() => {
+  return getOceanTheme(props.currentOceanTheme ?? DEFAULT_OCEAN_THEME_ID);
+});
+
+const creaturePoints = computed(() => {
+  const base = 100;
+  return Math.round(base * currentTheme.value.scoreCoefficients.creature * currentTheme.value.scoreCoefficients.global);
+});
+
+const wreckPoints = computed(() => {
+  const base = 200;
+  return Math.round(base * currentTheme.value.scoreCoefficients.wreck * currentTheme.value.scoreCoefficients.global);
+});
+
+const dangerPenalty = computed(() => {
+  const base = -150;
+  return Math.round(base * currentTheme.value.scoreCoefficients.danger);
+});
+
+const selectTheme = (themeId: OceanThemeId) => {
+  emit('selectOceanTheme', themeId);
+  showThemeSelector.value = false;
+};
+
+const hexToRgb = (hex: number): string => {
+  const r = (hex >> 16) & 255;
+  const g = (hex >> 8) & 255;
+  const b = hex & 255;
+  return `rgb(${r}, ${g}, ${b})`;
+};
 
 const collectionPercent = computed(() => {
   if (props.collectionStats.total === 0) return 0;
@@ -221,6 +296,210 @@ const formatCountdown = (ms: number): string => {
   text-transform: uppercase;
 }
 
+.theme-selector {
+  position: relative;
+  margin-bottom: 16px;
+  z-index: 10;
+}
+
+.theme-current {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(0, 60, 100, 0.7), rgba(0, 30, 70, 0.8));
+  border: 1px solid rgba(0, 255, 170, 0.4);
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.theme-current:hover {
+  border-color: rgba(0, 255, 170, 0.7);
+  box-shadow: 0 4px 16px rgba(0, 255, 200, 0.2);
+}
+
+.theme-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.theme-info {
+  flex: 1;
+  text-align: left;
+}
+
+.theme-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.95);
+  letter-spacing: 1px;
+}
+
+.theme-subtitle {
+  font-size: 10px;
+  color: rgba(0, 255, 200, 0.5);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.difficulty-badge {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 3px 8px;
+  border: 1px solid;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+.theme-arrow {
+  font-size: 20px;
+  color: rgba(0, 255, 200, 0.6);
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+.theme-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.theme-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, rgba(0, 30, 60, 0.98), rgba(0, 10, 30, 0.99));
+  border: 1px solid rgba(0, 255, 170, 0.4);
+  border-radius: 12px;
+  padding: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 4px;
+}
+
+.theme-option:last-child {
+  margin-bottom: 0;
+}
+
+.theme-option:hover {
+  background: rgba(0, 255, 170, 0.1);
+}
+
+.theme-option.active {
+  background: rgba(0, 255, 170, 0.15);
+  border: 1px solid rgba(0, 255, 170, 0.4);
+}
+
+.theme-option-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.theme-option-info {
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+}
+
+.theme-option-name {
+  font-size: 13px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.95);
+  margin-bottom: 2px;
+}
+
+.theme-option-desc {
+  font-size: 10px;
+  color: rgba(200, 240, 255, 0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-option-difficulty {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+.theme-description {
+  font-size: 12px;
+  color: rgba(200, 240, 255, 0.75);
+  text-align: left;
+  padding: 10px 14px;
+  background: rgba(0, 40, 60, 0.4);
+  border-left: 2px solid rgba(0, 255, 170, 0.4);
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.risk-rules {
+  margin-bottom: 16px;
+}
+
+.risk-rules-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.8);
+  text-align: left;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+
+.risk-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.risk-rule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(0, 40, 60, 0.3);
+  border-radius: 8px;
+  font-size: 11px;
+  color: rgba(200, 240, 255, 0.8);
+}
+
+.risk-rule-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.risk-rule-text {
+  flex: 1;
+  text-align: left;
+}
+
 .sonar-animation {
   position: relative;
   width: 160px;
@@ -235,9 +514,9 @@ const formatCountdown = (ms: number): string => {
   transform: translate(-50%, -50%);
   width: 16px;
   height: 16px;
-  background: radial-gradient(circle, #00ffcc 0%, #00ffaa 100%);
+  background: radial-gradient(circle, var(--sonar-color, rgb(0, 255, 204)) 0%, var(--sonar-color, rgb(0, 255, 170)) 100%);
   border-radius: 50%;
-  box-shadow: 0 0 20px rgba(0, 255, 200, 0.8), 0 0 40px rgba(0, 255, 200, 0.4);
+  box-shadow: 0 0 20px var(--sonar-color, rgb(0, 255, 204)), 0 0 40px var(--sonar-color, rgb(0, 255, 204));
 }
 
 .sonar-ring {
@@ -245,7 +524,7 @@ const formatCountdown = (ms: number): string => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  border: 2px solid rgba(0, 255, 200, 0.6);
+  border: 2px solid var(--sonar-color, rgb(0, 255, 204));
   border-radius: 50%;
   animation: sonar-expand 3s ease-out infinite;
 }

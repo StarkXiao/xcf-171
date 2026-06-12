@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
-import type { Target, SonarWave, EchoPoint, Position, DangerZone, OceanEvent } from '../types/game';
+import type { Target, SonarWave, EchoPoint, Position, DangerZone, OceanEvent, OceanThemeId } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
+import { getOceanTheme, DEFAULT_OCEAN_THEME_ID } from '../config/oceanThemes';
 
 export class MapRenderer {
   private app: PIXI.Application;
@@ -22,16 +23,20 @@ export class MapRenderer {
   private discoveredMask: PIXI.Graphics;
   private discoveredAreas: Array<{ x: number; y: number; radius: number }> = [];
   private particles: Array<{ sprite: PIXI.Graphics; vy: number; vx: number }> = [];
+  private oceanThemeId: OceanThemeId = DEFAULT_OCEAN_THEME_ID;
+  private htmlContainer: HTMLElement;
 
   constructor(htmlContainer: HTMLElement, width: number, height: number) {
+    this.htmlContainer = htmlContainer;
     this.width = width;
     this.height = height;
     this.viewportHeight = htmlContainer.clientHeight;
+    const theme = getOceanTheme(this.oceanThemeId);
 
     this.app = new PIXI.Application({
       width: htmlContainer.clientWidth,
       height: this.viewportHeight,
-      backgroundColor: GAME_CONFIG.COLORS.BACKGROUND,
+      backgroundColor: theme.colors.background,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -110,9 +115,10 @@ export class MapRenderer {
 
   private drawGrid() {
     this.gridContainer.removeChildren();
+    const colors = this.getThemeColors();
     const gridSize = 50;
     const grid = new PIXI.Graphics();
-    grid.lineStyle(1, GAME_CONFIG.COLORS.GRID, 0.15);
+    grid.lineStyle(1, colors.grid, 0.15);
 
     for (let x = 0; x <= this.width; x += gridSize) {
       grid.moveTo(x, 0);
@@ -124,7 +130,7 @@ export class MapRenderer {
     }
 
     const border = new PIXI.Graphics();
-    border.lineStyle(3, GAME_CONFIG.COLORS.SONAR, 0.5);
+    border.lineStyle(3, colors.sonar, 0.5);
     border.drawRect(0, 0, this.width, this.height);
     this.gridContainer.addChild(grid, border);
   }
@@ -139,9 +145,12 @@ export class MapRenderer {
   }
 
   private createParticles() {
+    this.particleContainer.removeChildren();
+    this.particles = [];
+    const colors = this.getThemeColors();
     for (let i = 0; i < 60; i++) {
       const p = new PIXI.Graphics();
-      p.beginFill(0x66ffff, 0.4 + Math.random() * 0.4);
+      p.beginFill(colors.creature, 0.4 + Math.random() * 0.4);
       p.drawCircle(0, 0, 1 + Math.random() * 2);
       p.endFill();
       p.x = Math.random() * this.width;
@@ -194,17 +203,18 @@ export class MapRenderer {
 
   public renderWaves(waves: SonarWave[]) {
     this.waveContainer.removeChildren();
+    const colors = this.getThemeColors();
     for (const wave of waves) {
       const g = new PIXI.Graphics();
-      g.lineStyle(3, GAME_CONFIG.COLORS.SONAR, wave.alpha * 0.9);
+      g.lineStyle(3, colors.sonar, wave.alpha * 0.9);
       g.drawCircle(wave.position.x, wave.position.y, wave.radius);
 
       const g2 = new PIXI.Graphics();
-      g2.lineStyle(1, GAME_CONFIG.COLORS.SONAR, wave.alpha * 0.4);
+      g2.lineStyle(1, colors.sonar, wave.alpha * 0.4);
       g2.drawCircle(wave.position.x, wave.position.y, wave.radius * 0.85);
 
       const glow = new PIXI.Graphics();
-      glow.lineStyle(8, GAME_CONFIG.COLORS.SONAR, wave.alpha * 0.15);
+      glow.lineStyle(8, colors.sonar, wave.alpha * 0.15);
       glow.drawCircle(wave.position.x, wave.position.y, wave.radius);
 
       this.waveContainer.addChild(glow, g2, g);
@@ -213,6 +223,7 @@ export class MapRenderer {
 
   public renderEchos(echos: EchoPoint[]) {
     this.echoContainer.removeChildren();
+    const colors = this.getThemeColors();
     for (const echo of echos) {
       if (echo.isSuspected) {
         const pulseSize = echo.size * (1 + (1 - echo.alpha) * 0.8);
@@ -234,9 +245,9 @@ export class MapRenderer {
 
         this.echoContainer.addChild(fuzzyGlow, outer, core);
       } else {
-        let color = GAME_CONFIG.COLORS.CREATURE;
-        if (echo.type === 'wreck') color = GAME_CONFIG.COLORS.WRECK;
-        else if (echo.type === 'danger') color = GAME_CONFIG.COLORS.DANGER;
+        let color = colors.creature;
+        if (echo.type === 'wreck') color = colors.wreck;
+        else if (echo.type === 'danger') color = colors.danger;
 
         const pulseSize = echo.size * (1 + (1 - echo.alpha) * 0.5);
 
@@ -328,9 +339,10 @@ export class MapRenderer {
   }
 
   private drawTarget(target: Target) {
-    let color = GAME_CONFIG.COLORS.CREATURE;
-    if (target.type === 'wreck') color = GAME_CONFIG.COLORS.WRECK;
-    else if (target.type === 'danger') color = GAME_CONFIG.COLORS.DANGER;
+    const colors = this.getThemeColors();
+    let color = colors.creature;
+    if (target.type === 'wreck') color = colors.wreck;
+    else if (target.type === 'danger') color = colors.danger;
 
     const g = new PIXI.Graphics();
     g.x = target.position.x;
@@ -446,16 +458,17 @@ export class MapRenderer {
     player.removeChildren();
     player.x = position.x;
     player.y = position.y;
+    const colors = this.getThemeColors();
 
     const glow = new PIXI.Graphics();
-    glow.beginFill(GAME_CONFIG.COLORS.PLAYER, 0.15);
+    glow.beginFill(colors.player, 0.15);
     glow.drawCircle(0, 0, 40);
     glow.endFill();
     player.addChild(glow);
 
     const body = new PIXI.Graphics();
-    body.lineStyle(2, GAME_CONFIG.COLORS.PLAYER, 1);
-    body.beginFill(GAME_CONFIG.COLORS.PLAYER, 0.5);
+    body.lineStyle(2, colors.player, 1);
+    body.beginFill(colors.player, 0.5);
     body.drawCircle(0, 0, 14);
     body.endFill();
     player.addChild(body);
@@ -468,7 +481,7 @@ export class MapRenderer {
 
     const pulse = 1 + Math.sin(Date.now() / 300) * 0.1;
     const ring = new PIXI.Graphics();
-    ring.lineStyle(1, GAME_CONFIG.COLORS.PLAYER, 0.5);
+    ring.lineStyle(1, colors.player, 0.5);
     ring.drawCircle(0, 0, 25 * pulse);
     player.addChild(ring);
   }
@@ -506,6 +519,21 @@ export class MapRenderer {
 
   public getMapSize(): { width: number; height: number } {
     return { width: this.width, height: this.height };
+  }
+
+  public setOceanTheme(themeId: OceanThemeId) {
+    this.oceanThemeId = themeId;
+    const theme = getOceanTheme(themeId);
+    
+    this.app.renderer.background.color = theme.colors.background;
+    
+    this.drawBackground();
+    this.drawGrid();
+    this.createParticles();
+  }
+
+  private getThemeColors() {
+    return getOceanTheme(this.oceanThemeId).colors;
   }
 
   private drawDashedCircle(
