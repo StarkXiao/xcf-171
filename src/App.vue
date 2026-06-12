@@ -48,6 +48,15 @@
       @back="closePrep"
     />
 
+    <VoyageSettlementDetail
+      v-if="gameState.isGameOver && !showCollection && showSettlementDetail && !isRelayMode"
+      :visible="showSettlementDetail"
+      :record="lastVoyageRecord"
+      :expedition-reward="lastExpeditionReward"
+      :total-expedition-points="totalExpeditionPoints"
+      @back="closeSettlementDetail"
+    />
+
     <GameOverScreen
       v-if="gameState.isGameOver && !showCollection && !showSettlementDetail && !isRelayMode"
       :score="gameState.score"
@@ -65,16 +74,6 @@
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
-      @open-settlement="openSettlementDetail"
-    />
-
-    <VoyageSettlementDetail
-      v-if="showSettlementDetail"
-      :visible="showSettlementDetail"
-      :record="lastVoyageRecord"
-      :expedition-reward="lastExpeditionReward"
-      :total-expedition-points="totalExpeditionPoints"
-      @back="closeSettlementDetail"
     />
 
     <RelayGameOver
@@ -404,6 +403,7 @@ const handleGameOver = (finalScore: number) => {
 
   const record = voyageArchiveSystem.finishVoyage(state, false, finalScore > highScore.value);
   lastVoyageRecord.value = record;
+  showSettlementDetail.value = true;
 
   if (finalScore > highScore.value) {
     highScore.value = finalScore;
@@ -693,10 +693,6 @@ const openCollection = () => {
 
 const closeCollection = () => {
   showCollection.value = false;
-};
-
-const openSettlementDetail = () => {
-  showSettlementDetail.value = true;
 };
 
 const closeSettlementDetail = () => {
