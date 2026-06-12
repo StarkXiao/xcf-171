@@ -55,10 +55,12 @@ export class SonarSystem {
     return true;
   }
 
-  update(delta: number, targets: Target[]): { echos: EchoPoint[]; discoveredTargetIds: number[]; discoveredPositions: Position[] } {
+  update(delta: number, targets: Target[]): { echos: EchoPoint[]; discoveredTargetIds: number[]; discoveredPositions: Position[]; suspectedTargetIds: number[]; confirmedTargetIds: number[] } {
     const newEchos: EchoPoint[] = [];
     const discoveredIds: number[] = [];
     const discoveredPositions: Position[] = [];
+    const suspectedIds: number[] = [];
+    const confirmedIds: number[] = [];
 
     for (const wave of this.waves) {
       if (!wave.active) continue;
@@ -73,7 +75,7 @@ export class SonarSystem {
       }
 
       for (const target of targets) {
-        if (target.discovered || target.collected) continue;
+        if (target.collected) continue;
 
         const dx = target.position.x - wave.position.x;
         const dy = target.position.y - wave.position.y;
@@ -83,40 +85,111 @@ export class SonarSystem {
           if (Math.random() > this.discoveryEfficiencyMul && this.discoveryEfficiencyMul < 1) {
             continue;
           }
-          
-          target.discovered = true;
-          discoveredIds.push(target.id);
-          discoveredPositions.push({ ...target.position });
 
-          const baseEchoCount = target.type === 'wreck' ? 3 : target.type === 'danger' ? 2 : 1;
-          const rawEchoCount = baseEchoCount * this.echoCountMul;
-          const echoCount = Math.max(1, Math.floor(rawEchoCount));
-          const extraEchoChance = rawEchoCount - echoCount;
-          
-          const totalEchoes = echoCount + (Math.random() < extraEchoChance ? 1 : 0);
-          
-          const baseLife = 2.5 * this.echoLifeMul;
-          
-          for (let i = 0; i < totalEchoes; i++) {
-            const angleOffset = (i - (totalEchoes - 1) / 2) * 0.3;
-            const angle = Math.atan2(dy, dx) + angleOffset;
-            const r = target.radius * (0.7 + Math.random() * 0.6);
-            const echoPos = {
-              x: target.position.x + Math.cos(angle) * r * 0.3,
-              y: target.position.y + Math.sin(angle) * r * 0.3,
-            };
-            const echo: EchoPoint = {
-              id: echoIdCounter++,
-              position: echoPos,
-              targetId: target.id,
-              type: target.type,
-              alpha: 1,
-              life: baseLife,
-              maxLife: baseLife,
-              size: target.radius * (0.4 + Math.random() * 0.4) * this.echoSizeMul,
-            };
-            this.echoPoints.push(echo);
-            newEchos.push(echo);
+          if (target.type === 'danger') {
+            if (target.dangerPhase === 'undetected' || !target.dangerPhase) {
+              target.dangerPhase = 'suspected';
+              suspectedIds.push(target.id);
+
+              const rawEchoCount = 1 * this.echoCountMul;
+              const echoCount = Math.max(1, Math.floor(rawEchoCount));
+              const extraEchoChance = rawEchoCount - echoCount;
+              const totalEchoes = echoCount + (Math.random() < extraEchoChance ? 1 : 0);
+              const baseLife = 2.5 * this.echoLifeMul;
+
+              for (let i = 0; i < totalEchoes; i++) {
+                const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.2;
+                const r = target.radius * (1.2 + Math.random() * 0.8);
+                const echoPos = {
+                  x: target.position.x + Math.cos(angle) * r * 0.5,
+                  y: target.position.y + Math.sin(angle) * r * 0.5,
+                };
+                const echo: EchoPoint = {
+                  id: echoIdCounter++,
+                  position: echoPos,
+                  targetId: target.id,
+                  type: 'danger',
+                  alpha: 0.6,
+                  life: baseLife * 0.7,
+                  maxLife: baseLife * 0.7,
+                  size: target.radius * (0.3 + Math.random() * 0.3) * this.echoSizeMul,
+                  isSuspected: true,
+                };
+                this.echoPoints.push(echo);
+                newEchos.push(echo);
+              }
+            } else if (target.dangerPhase === 'suspected') {
+              target.dangerPhase = 'confirmed';
+              target.discovered = true;
+              discoveredIds.push(target.id);
+              discoveredPositions.push({ ...target.position });
+              confirmedIds.push(target.id);
+
+              const baseEchoCount = 2;
+              const rawEchoCount = baseEchoCount * this.echoCountMul;
+              const echoCount = Math.max(1, Math.floor(rawEchoCount));
+              const extraEchoChance = rawEchoCount - echoCount;
+              const totalEchoes = echoCount + (Math.random() < extraEchoChance ? 1 : 0);
+              const baseLife = 2.5 * this.echoLifeMul;
+
+              for (let i = 0; i < totalEchoes; i++) {
+                const angleOffset = (i - (totalEchoes - 1) / 2) * 0.3;
+                const angle = Math.atan2(dy, dx) + angleOffset;
+                const r = target.radius * (0.7 + Math.random() * 0.6);
+                const echoPos = {
+                  x: target.position.x + Math.cos(angle) * r * 0.3,
+                  y: target.position.y + Math.sin(angle) * r * 0.3,
+                };
+                const echo: EchoPoint = {
+                  id: echoIdCounter++,
+                  position: echoPos,
+                  targetId: target.id,
+                  type: 'danger',
+                  alpha: 1,
+                  life: baseLife,
+                  maxLife: baseLife,
+                  size: target.radius * (0.4 + Math.random() * 0.4) * this.echoSizeMul,
+                  isSuspected: false,
+                };
+                this.echoPoints.push(echo);
+                newEchos.push(echo);
+              }
+            }
+          } else {
+            if (target.discovered) continue;
+
+            target.discovered = true;
+            discoveredIds.push(target.id);
+            discoveredPositions.push({ ...target.position });
+
+            const baseEchoCount = target.type === 'wreck' ? 3 : 1;
+            const rawEchoCount = baseEchoCount * this.echoCountMul;
+            const echoCount = Math.max(1, Math.floor(rawEchoCount));
+            const extraEchoChance = rawEchoCount - echoCount;
+            const totalEchoes = echoCount + (Math.random() < extraEchoChance ? 1 : 0);
+            const baseLife = 2.5 * this.echoLifeMul;
+
+            for (let i = 0; i < totalEchoes; i++) {
+              const angleOffset = (i - (totalEchoes - 1) / 2) * 0.3;
+              const angle = Math.atan2(dy, dx) + angleOffset;
+              const r = target.radius * (0.7 + Math.random() * 0.6);
+              const echoPos = {
+                x: target.position.x + Math.cos(angle) * r * 0.3,
+                y: target.position.y + Math.sin(angle) * r * 0.3,
+              };
+              const echo: EchoPoint = {
+                id: echoIdCounter++,
+                position: echoPos,
+                targetId: target.id,
+                type: target.type,
+                alpha: 1,
+                life: baseLife,
+                maxLife: baseLife,
+                size: target.radius * (0.4 + Math.random() * 0.4) * this.echoSizeMul,
+              };
+              this.echoPoints.push(echo);
+              newEchos.push(echo);
+            }
           }
         }
       }
@@ -134,7 +207,7 @@ export class SonarSystem {
       this.onEchoGenerated(newEchos);
     }
 
-    return { echos: this.echoPoints, discoveredTargetIds: discoveredIds, discoveredPositions };
+    return { echos: this.echoPoints, discoveredTargetIds: discoveredIds, discoveredPositions, suspectedTargetIds: suspectedIds, confirmedTargetIds: confirmedIds };
   }
 
   getWaves(): SonarWave[] {

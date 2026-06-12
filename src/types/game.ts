@@ -5,6 +5,8 @@ export interface Position {
 
 export type TargetType = 'creature' | 'wreck' | 'danger';
 
+export type DangerIdentificationPhase = 'undetected' | 'suspected' | 'confirmed';
+
 export interface Target {
   id: number;
   type: TargetType;
@@ -17,6 +19,7 @@ export interface Target {
   shape: 'circle' | 'triangle' | 'square' | 'irregular';
   rotation: number;
   enhancedByEvent?: OceanEventType;
+  dangerPhase?: DangerIdentificationPhase;
 }
 
 export interface CollectionEntry {
@@ -62,6 +65,7 @@ export interface EchoPoint {
   life: number;
   maxLife: number;
   size: number;
+  isSuspected?: boolean;
 }
 
 export interface GameState {

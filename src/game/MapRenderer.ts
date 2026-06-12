@@ -214,36 +214,117 @@ export class MapRenderer {
   public renderEchos(echos: EchoPoint[]) {
     this.echoContainer.removeChildren();
     for (const echo of echos) {
-      let color = GAME_CONFIG.COLORS.CREATURE;
-      if (echo.type === 'wreck') color = GAME_CONFIG.COLORS.WRECK;
-      else if (echo.type === 'danger') color = GAME_CONFIG.COLORS.DANGER;
+      if (echo.isSuspected) {
+        const pulseSize = echo.size * (1 + (1 - echo.alpha) * 0.8);
+        const suspectColor = 0xaa8855;
 
-      const pulseSize = echo.size * (1 + (1 - echo.alpha) * 0.5);
+        const fuzzyGlow = new PIXI.Graphics();
+        fuzzyGlow.beginFill(suspectColor, echo.alpha * 0.08);
+        fuzzyGlow.drawCircle(echo.position.x, echo.position.y, pulseSize * 3.5);
+        fuzzyGlow.endFill();
 
-      const glow = new PIXI.Graphics();
-      glow.beginFill(color, echo.alpha * 0.15);
-      glow.drawCircle(echo.position.x, echo.position.y, pulseSize * 2.5);
-      glow.endFill();
+        const outer = new PIXI.Graphics();
+        outer.lineStyle(1, suspectColor, echo.alpha * 0.3);
+        this.drawDashedCircle(outer, echo.position.x, echo.position.y, pulseSize * 1.8, suspectColor, echo.alpha * 0.3, 4, 6);
 
-      const outer = new PIXI.Graphics();
-      outer.lineStyle(2, color, echo.alpha * 0.6);
-      outer.drawCircle(echo.position.x, echo.position.y, pulseSize * 1.5);
+        const core = new PIXI.Graphics();
+        core.beginFill(suspectColor, echo.alpha * 0.5);
+        core.drawCircle(echo.position.x, echo.position.y, pulseSize * 0.5);
+        core.endFill();
 
-      const core = new PIXI.Graphics();
-      core.beginFill(color, echo.alpha);
-      core.drawCircle(echo.position.x, echo.position.y, pulseSize * 0.6);
-      core.endFill();
+        this.echoContainer.addChild(fuzzyGlow, outer, core);
+      } else {
+        let color = GAME_CONFIG.COLORS.CREATURE;
+        if (echo.type === 'wreck') color = GAME_CONFIG.COLORS.WRECK;
+        else if (echo.type === 'danger') color = GAME_CONFIG.COLORS.DANGER;
 
-      this.echoContainer.addChild(glow, outer, core);
+        const pulseSize = echo.size * (1 + (1 - echo.alpha) * 0.5);
+
+        const glow = new PIXI.Graphics();
+        glow.beginFill(color, echo.alpha * 0.15);
+        glow.drawCircle(echo.position.x, echo.position.y, pulseSize * 2.5);
+        glow.endFill();
+
+        const outer = new PIXI.Graphics();
+        outer.lineStyle(2, color, echo.alpha * 0.6);
+        outer.drawCircle(echo.position.x, echo.position.y, pulseSize * 1.5);
+
+        const core = new PIXI.Graphics();
+        core.beginFill(color, echo.alpha);
+        core.drawCircle(echo.position.x, echo.position.y, pulseSize * 0.6);
+        core.endFill();
+
+        this.echoContainer.addChild(glow, outer, core);
+      }
     }
   }
 
   public renderTargets(targets: Target[]) {
     this.targetContainer.removeChildren();
     for (const target of targets) {
-      if (!target.discovered || target.collected) continue;
+      if (target.collected) continue;
+      if (target.type === 'danger' && target.dangerPhase === 'suspected') {
+        this.drawSuspectedDanger(target);
+        continue;
+      }
+      if (!target.discovered) continue;
       this.drawTarget(target);
     }
+  }
+
+  private drawSuspectedDanger(target: Target) {
+    const g = new PIXI.Container();
+    g.x = target.position.x;
+    g.y = target.position.y;
+
+    const now = Date.now();
+    const pulse = 0.4 + Math.sin(now / 400) * 0.3;
+    const slowPulse = 0.6 + Math.sin(now / 800) * 0.2;
+
+    const fuzzyGlow = new PIXI.Graphics();
+    fuzzyGlow.beginFill(0x886644, 0.06 * pulse);
+    fuzzyGlow.drawCircle(0, 0, target.radius * 2.5);
+    fuzzyGlow.endFill();
+    g.addChild(fuzzyGlow);
+
+    const outerGlow = new PIXI.Graphics();
+    outerGlow.beginFill(0xaa8855, 0.08 * slowPulse);
+    outerGlow.drawCircle(0, 0, target.radius * 1.8);
+    outerGlow.endFill();
+    g.addChild(outerGlow);
+
+    const ring = new PIXI.Graphics();
+    ring.lineStyle(1.5, 0x998866, 0.35 * slowPulse);
+    this.drawDashedCircle(ring, 0, 0, target.radius * 1.2, 0x998866, 0.35 * slowPulse, 6, 8);
+    g.addChild(ring);
+
+    const innerBlob = new PIXI.Graphics();
+    innerBlob.beginFill(0x887755, 0.12 * pulse);
+    const segments = 8;
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2 + now / 3000;
+      const rr = target.radius * (0.5 + Math.sin(i * 3.1 + now / 500) * 0.15);
+      const px = Math.cos(angle) * rr;
+      const py = Math.sin(angle) * rr;
+      if (i === 0) innerBlob.moveTo(px, py);
+      else innerBlob.lineTo(px, py);
+    }
+    innerBlob.closePath();
+    innerBlob.endFill();
+    g.addChild(innerBlob);
+
+    const questionMark = new PIXI.Text('?', {
+      fontSize: Math.round(target.radius * 0.9),
+      fontFamily: 'monospace',
+      fontWeight: 'bold',
+      fill: 0xccaa77,
+      align: 'center',
+    });
+    questionMark.anchor.set(0.5, 0.5);
+    questionMark.alpha = 0.5 + pulse * 0.3;
+    g.addChild(questionMark);
+
+    this.targetContainer.addChild(g);
   }
 
   private drawTarget(target: Target) {

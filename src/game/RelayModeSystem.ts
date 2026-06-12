@@ -359,6 +359,8 @@ export class RelayModeSystem {
 
   private handleEcho(echos: EchoPoint[]) {
     for (const echo of echos) {
+      if (echo.isSuspected) continue;
+
       const target = this.targets.find(t => t.id === echo.targetId);
       if (!target || target.discovered) continue;
 

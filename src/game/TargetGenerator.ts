@@ -173,6 +173,7 @@ export class TargetGenerator {
             collected: false,
             shape: this.randomShape(type),
             rotation: this.randomRotation(),
+            dangerPhase: type === 'danger' ? 'undetected' : undefined,
           });
           return;
         }
