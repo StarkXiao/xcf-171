@@ -49,7 +49,7 @@
     />
 
     <GameOverScreen
-      v-if="gameState.isGameOver && !showCollection && !isRelayMode"
+      v-if="gameState.isGameOver && !showCollection && !showSettlementDetail && !isRelayMode"
       :score="gameState.score"
       :level="gameState.level"
       :discovered="gameState.discoveredTargets"
@@ -65,6 +65,16 @@
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
+      @open-settlement="openSettlementDetail"
+    />
+
+    <VoyageSettlementDetail
+      v-if="showSettlementDetail"
+      :visible="showSettlementDetail"
+      :record="lastVoyageRecord"
+      :expedition-reward="lastExpeditionReward"
+      :total-expedition-points="totalExpeditionPoints"
+      @back="closeSettlementDetail"
     />
 
     <RelayGameOver
@@ -108,7 +118,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward, VoyageRecord } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -128,6 +138,7 @@ import RelayGameHUD from './components/RelayGameHUD.vue';
 import RelayGameOver from './components/RelayGameOver.vue';
 import SalvageEvent from './components/SalvageEvent.vue';
 import VoiceprintLab from './components/VoiceprintLab.vue';
+import VoyageSettlementDetail from './components/VoyageSettlementDetail.vue';
 
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -161,6 +172,8 @@ const missionResult = ref<MissionResult | null>(null);
 const comboStats = ref<ComboStats | null>(null);
 const lastExpeditionReward = ref<ExpeditionReward | null>(null);
 const totalExpeditionPoints = ref(0);
+const showSettlementDetail = ref(false);
+const lastVoyageRecord = ref<VoyageRecord | null>(null);
 
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
@@ -389,7 +402,8 @@ const handleGameOver = (finalScore: number) => {
   lastExpeditionReward.value = reward;
   totalExpeditionPoints.value = researchStationSystem.getTotalExpeditionPoints();
 
-  voyageArchiveSystem.finishVoyage(state, false, finalScore > highScore.value);
+  const record = voyageArchiveSystem.finishVoyage(state, false, finalScore > highScore.value);
+  lastVoyageRecord.value = record;
 
   if (finalScore > highScore.value) {
     highScore.value = finalScore;
@@ -607,6 +621,8 @@ const handleRestart = () => {
   gameController?.startGame();
   voyageArchiveSystem.startVoyage('normal', currentLoadout.value);
   lastExpeditionReward.value = null;
+  lastVoyageRecord.value = null;
+  showSettlementDetail.value = false;
 };
 
 const handleHome = () => {
@@ -660,6 +676,8 @@ const handleHome = () => {
   missionResult.value = null;
   comboStats.value = null;
   lastExpeditionReward.value = null;
+  lastVoyageRecord.value = null;
+  showSettlementDetail.value = false;
   refreshCollection();
 
   if (relaySystem) {
@@ -675,6 +693,14 @@ const openCollection = () => {
 
 const closeCollection = () => {
   showCollection.value = false;
+};
+
+const openSettlementDetail = () => {
+  showSettlementDetail.value = true;
+};
+
+const closeSettlementDetail = () => {
+  showSettlementDetail.value = false;
 };
 
 const handleResetCollection = () => {

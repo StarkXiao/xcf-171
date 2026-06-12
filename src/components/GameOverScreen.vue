@@ -179,6 +179,11 @@
         <span>查看图鉴</span>
       </button>
 
+      <button class="settlement-btn" @click="$emit('openSettlement')">
+        <span class="btn-icon">📊</span>
+        <span>航次结算详情</span>
+      </button>
+
       <button class="home-btn" @click="$emit('home')">
         返回主页
       </button>
@@ -216,6 +221,7 @@ defineEmits<{
   (e: 'home'): void;
   (e: 'openCollection'): void;
   (e: 'openLeaderboard'): void;
+  (e: 'openSettlement'): void;
 }>();
 
 const isNewHighScore = computed(() => props.score >= props.highScore && props.score > 0);
@@ -680,6 +686,32 @@ const formatNumber = (n: number | undefined | null) => (n ?? 0).toLocaleString()
   border-color: rgba(255, 204, 0, 0.6);
   transform: translateY(-1px);
   box-shadow: 0 4px 20px rgba(255, 204, 0, 0.2);
+}
+
+.settlement-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.9);
+  background: linear-gradient(135deg, rgba(0, 100, 120, 0.15), rgba(0, 60, 100, 0.15));
+  border: 1px solid rgba(0, 255, 200, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  transition: all 0.3s ease;
+}
+
+.settlement-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 150, 180, 0.2), rgba(0, 100, 150, 0.2));
+  border-color: rgba(0, 255, 200, 0.6);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 255, 200, 0.15);
 }
 
 .home-btn {
