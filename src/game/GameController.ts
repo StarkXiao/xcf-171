@@ -413,17 +413,11 @@ export class GameController {
 
     this.oceanEventSystem.update(delta, this.playerPosition);
 
-    const { discoveredTargetIds, discoveredPositions, suspectedTargetIds, confirmedTargetIds } = this.sonar.update(delta, this.targets);
+    const { discoveredTargetIds, discoveredPositions, confirmedTargetIds } = this.sonar.update(delta, this.targets);
     for (let i = 0; i < discoveredTargetIds.length; i++) {
       const position = discoveredPositions[i] || undefined;
       this.scoreSystem.discoverTarget(position);
       this.missionSystem.onDiscoverTarget();
-    }
-    for (const id of suspectedTargetIds) {
-      const target = this.targets.find(t => t.id === id);
-      if (target) {
-        this.scoreSystem.discoverTarget({ ...target.position });
-      }
     }
 
     this.renderer.updateCamera(this.playerPosition.y);

@@ -60,6 +60,8 @@
       :max-sonar-combo="comboStats?.maxSonarCombo"
       :combo-bonus-points="comboStats?.comboBonusPoints"
       :combo-sonar-charges="comboStats?.comboSonarCharges"
+      :expedition-reward="lastExpeditionReward"
+      :total-expedition-points="totalExpeditionPoints"
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
@@ -106,7 +108,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -157,6 +159,8 @@ const activeOceanEvents = ref<OceanEvent[]>([]);
 const activeMissions = ref<Mission[]>([]);
 const missionResult = ref<MissionResult | null>(null);
 const comboStats = ref<ComboStats | null>(null);
+const lastExpeditionReward = ref<ExpeditionReward | null>(null);
+const totalExpeditionPoints = ref(0);
 
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
@@ -376,6 +380,17 @@ const handleGameOver = (finalScore: number) => {
     comboStats.value = gameController.getComboStats();
   }
 
+  const state = gameState;
+  const reward = researchStationSystem.grantExpeditionReward(
+    state.score,
+    state.level,
+    state.discoveredTargets
+  );
+  lastExpeditionReward.value = reward;
+  totalExpeditionPoints.value = researchStationSystem.getTotalExpeditionPoints();
+
+  voyageArchiveSystem.finishVoyage(state, false, finalScore > highScore.value);
+
   if (finalScore > highScore.value) {
     highScore.value = finalScore;
     try {
@@ -556,6 +571,8 @@ const handleStart = () => {
   gameStarted.value = true;
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
+  voyageArchiveSystem.startVoyage('normal', currentLoadout.value);
+  lastExpeditionReward.value = null;
   setTimeout(() => {
     showHint.value = false;
   }, 5000);
@@ -570,6 +587,8 @@ const handlePrepStart = (loadout: ExpeditionLoadout) => {
   gameStarted.value = true;
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
+  voyageArchiveSystem.startVoyage('normal', currentLoadout.value);
+  lastExpeditionReward.value = null;
   setTimeout(() => {
     showHint.value = false;
   }, 5000);
@@ -586,6 +605,8 @@ const closePrep = () => {
 const handleRestart = () => {
   gameController?.setLoadout(currentLoadout.value);
   gameController?.startGame();
+  voyageArchiveSystem.startVoyage('normal', currentLoadout.value);
+  lastExpeditionReward.value = null;
 };
 
 const handleHome = () => {
@@ -638,6 +659,7 @@ const handleHome = () => {
   activeMissions.value = [];
   missionResult.value = null;
   comboStats.value = null;
+  lastExpeditionReward.value = null;
   refreshCollection();
 
   if (relaySystem) {
@@ -739,6 +761,7 @@ onMounted(() => {
 
   refreshCollection();
   refreshSalvageEventState();
+  totalExpeditionPoints.value = researchStationSystem.getTotalExpeditionPoints();
 
   salvageEventSystem.setEventCallback(handleSalvageEvent);
 
