@@ -1243,6 +1243,99 @@ export interface LegendaryChainEvent {
   timerRemaining?: number;
 }
 
+export type TutorialStepId =
+  | 'welcome'
+  | 'sonar_intro'
+  | 'sonar_fire'
+  | 'discover_target'
+  | 'collect_intro'
+  | 'collect_creature'
+  | 'danger_warning'
+  | 'wreck_intro'
+  | 'combo_intro'
+  | 'depth_intro'
+  | 'level_progression'
+  | 'tutorial_complete';
+
+export type TutorialErrorType =
+  | 'tap_undiscovered'
+  | 'tap_danger'
+  | 'sonar_no_charges'
+  | 'sonar_miss'
+  | 'danger_collision'
+  | 'depth_pressure_critical'
+  | 'combo_broken_early'
+  | 'NO_SONAR_CHARGE'
+  | 'HIT_DANGER';
+
+export interface TutorialState {
+  isTutorialMode: boolean;
+  tutorialComplete: boolean;
+  currentStepIndex: number;
+  currentStep: TutorialStepId;
+  completedSteps: TutorialStepId[];
+  stepStartTime: number;
+  isStepWaitingForAction: boolean;
+  lastErrorType: TutorialErrorType | null;
+  errorCount: number;
+  actionCount: {
+    sonarFired: number;
+    targetsDiscovered: number;
+    targetsCollected: number;
+    creaturesCollected: number;
+    wrecksCollected: number;
+    dangersHit: number;
+  };
+  showErrorHint: boolean;
+  errorHintMessage: string;
+  errorHintDuration: number;
+  totalDangerHits: number;
+}
+
+export interface TutorialStepConfig {
+  id: TutorialStepId;
+  title: string;
+  description: string;
+  actionHint?: string;
+  icon: string;
+  duration: number;
+  autoAdvance: boolean;
+  requiredAction?: TutorialActionType;
+  actionCountRequired?: number;
+  highlightElement?: 'sonar_bar' | 'score_panel' | 'lives_panel' | 'depth_panel' | 'progress_bar';
+  highlightLevel: 'soft' | 'strong' | 'pulse';
+  skipable: boolean;
+  nextStepDelay?: number;
+}
+
+export type TutorialActionType =
+  | 'sonar_fire'
+  | 'target_discover'
+  | 'collect_target'
+  | 'collect_creature'
+  | 'collect_wreck'
+  | 'avoid_danger'
+  | 'reach_level_2'
+  | 'acknowledge'
+  | 'SONAR_FIRED'
+  | 'TARGET_DISCOVERED'
+  | 'TARGET_COLLECTED'
+  | 'CREATURE_COLLECTED'
+  | 'WRECK_COLLECTED'
+  | 'LEVEL_UP'
+  | 'DEPTH_200_REACHED';
+
+export interface TutorialErrorConfig {
+  type: TutorialErrorType;
+  title: string;
+  message: string;
+  suggestion: string;
+  icon: string;
+  severity: 'info' | 'warning' | 'error';
+  duration: number;
+  repeatThreshold: number;
+}
+
 export interface LegendaryTargetConfig {
   spawnChance: number;
   minLevelForSpawn: number;

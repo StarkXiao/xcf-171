@@ -197,6 +197,18 @@ export class ScoreSystem {
     this.state.isPlaying = true;
     this.state.totalTargets = totalTargets;
     this.scoreHistory = [];
+
+    if (GAME_CONFIG.TUTORIAL.ENABLED) {
+      const level = this.state.level;
+      if (level === 1) {
+        this.state.lives += GAME_CONFIG.TUTORIAL.LIVES_BONUS.LEVEL_1_BONUS;
+        this.state.sonarCharges += GAME_CONFIG.TUTORIAL.SONAR_BONUS.LEVEL_1_BONUS;
+      } else if (level === 2) {
+        this.state.lives += GAME_CONFIG.TUTORIAL.LIVES_BONUS.LEVEL_2_BONUS;
+        this.state.sonarCharges += GAME_CONFIG.TUTORIAL.SONAR_BONUS.LEVEL_2_BONUS;
+      }
+    }
+
     this.resetCombo();
     this.resetSonarCombo();
     this.awardedMilestones.clear();
@@ -210,6 +222,21 @@ export class ScoreSystem {
     this.clearComboTimers();
     this.pressureDamageAccumulator = 0;
     this.notifyStateChange();
+  }
+
+  private getLevelDamageReduction(level: number): { scorePenaltyRatio: number; lifePenaltyRatio: number } {
+    if (level === 1) {
+      return {
+        scorePenaltyRatio: GAME_CONFIG.TUTORIAL.DAMAGE_REDUCTION.LEVEL_1_DANGER_PENALTY_RATIO,
+        lifePenaltyRatio: GAME_CONFIG.TUTORIAL.DAMAGE_REDUCTION.LEVEL_1_LIFE_PENALTY_RATIO,
+      };
+    } else if (level === 2) {
+      return {
+        scorePenaltyRatio: GAME_CONFIG.TUTORIAL.DAMAGE_REDUCTION.LEVEL_2_DANGER_PENALTY_RATIO,
+        lifePenaltyRatio: GAME_CONFIG.TUTORIAL.DAMAGE_REDUCTION.LEVEL_2_LIFE_PENALTY_RATIO,
+      };
+    }
+    return { scorePenaltyRatio: 1.0, lifePenaltyRatio: 1.0 };
   }
 
   private getComboMultiplier(combo: number): number {
@@ -427,8 +454,17 @@ export class ScoreSystem {
     if (!this.state.isPlaying || this.state.isGameOver) return false;
 
     if (target.type === 'danger') {
-      const lifeLost = Math.ceil(GAME_CONFIG.SCORE.LIFE_LOST * this.params.dangerLifePenaltyMul);
-      const scorePenalty = Math.round(target.points * this.params.dangerScorePenaltyMul);
+      let lifePenaltyMul = this.params.dangerLifePenaltyMul;
+      let scorePenaltyMul = this.params.dangerScorePenaltyMul;
+
+      if (GAME_CONFIG.TUTORIAL.ENABLED && this.state.level <= GAME_CONFIG.TUTORIAL.NEWBIE_MAX_LEVELS) {
+        const reduction = this.getLevelDamageReduction(this.state.level);
+        lifePenaltyMul *= reduction.lifePenaltyRatio;
+        scorePenaltyMul *= reduction.scorePenaltyRatio;
+      }
+
+      const lifeLost = Math.max(0.5, Math.ceil(GAME_CONFIG.SCORE.LIFE_LOST * lifePenaltyMul));
+      const scorePenalty = Math.round(target.points * scorePenaltyMul);
       this.state.lives -= lifeLost;
       this.state.score += scorePenalty;
       if (this.state.score < 0) this.state.score = 0;

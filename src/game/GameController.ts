@@ -1,4 +1,4 @@
-import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect, ComboEvent, OceanThemeId, DepthZoneInfo, LegendaryChainState, LegendaryChainEvent } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect, ComboEvent, OceanThemeId, DepthZoneInfo, LegendaryChainState, LegendaryChainEvent, TutorialState, TutorialStepId, TutorialActionType, TutorialErrorType, TutorialStepConfig, TutorialErrorConfig } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { OCEAN_EVENT_CONFIG } from '../config/oceanEvents';
 import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
@@ -12,6 +12,7 @@ import { SalvageEventSystem } from './SalvageEventSystem';
 import { OceanEventSystem } from './OceanEventSystem';
 import { MissionSystem } from './MissionSystem';
 import { LegendaryChainSystem } from './LegendaryChainSystem';
+import { TutorialSystem } from './TutorialSystem';
 import * as PIXI from 'pixi.js';
 
 export class GameController {
@@ -24,6 +25,7 @@ export class GameController {
   private oceanEventSystem: OceanEventSystem;
   private missionSystem: MissionSystem;
   private legendaryChainSystem: LegendaryChainSystem;
+  private tutorialSystem: TutorialSystem;
 
   private targets: Target[] = [];
   private playerPosition: Position;
@@ -36,6 +38,7 @@ export class GameController {
   private currentEffects: LoadoutEffects;
   private eventWreckMap: Map<number, SalvageEventWreck> = new Map();
   private oceanThemeId: OceanThemeId = DEFAULT_OCEAN_THEME_ID;
+  private lastSonarDiscoveryCount: number = 0;
 
   private onStateChange?: (state: GameState) => void;
   private onScoreEvent?: (event: ScoreEvent) => void;
@@ -52,6 +55,10 @@ export class GameController {
   private onPressureWarning?: (integrity: number) => void;
   private onLegendaryChainEvent?: (event: LegendaryChainEvent) => void;
   private onLegendaryChainStateChange?: (state: LegendaryChainState) => void;
+  private onTutorialStateChange?: (state: TutorialState) => void;
+  private onTutorialStepComplete?: (stepId: TutorialStepId) => void;
+  private onTutorialComplete?: () => void;
+  private onTutorialError?: (errorType: TutorialErrorType, config: TutorialErrorConfig) => void;
 
   constructor(container: HTMLElement, collectionSystem?: CollectionSystem, salvageSystem?: SalvageEventSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
@@ -83,6 +90,12 @@ export class GameController {
     });
     this.missionSystem = new MissionSystem();
     this.legendaryChainSystem = new LegendaryChainSystem();
+    this.tutorialSystem = new TutorialSystem({
+      onStateChange: (state) => this.onTutorialStateChange?.(state),
+      onStepComplete: (stepId) => this.onTutorialStepComplete?.(stepId),
+      onTutorialComplete: () => this.onTutorialComplete?.(),
+      onErrorHint: (errorType, config) => this.onTutorialError?.(errorType, config),
+    });
 
     this.playerPosition = {
       x: GAME_CONFIG.MAP_WIDTH / 2,
@@ -306,7 +319,11 @@ export class GameController {
     onComboEvent?: (event: ComboEvent) => void,
     onPressureWarning?: (integrity: number) => void,
     onLegendaryChainEvent?: (event: LegendaryChainEvent) => void,
-    onLegendaryChainStateChange?: (state: LegendaryChainState) => void
+    onLegendaryChainStateChange?: (state: LegendaryChainState) => void,
+    onTutorialStateChange?: (state: TutorialState) => void,
+    onTutorialStepComplete?: (stepId: TutorialStepId) => void,
+    onTutorialComplete?: () => void,
+    onTutorialError?: (errorType: TutorialErrorType, config: TutorialErrorConfig) => void
   ) {
     this.onStateChange = onStateChange;
     this.onScoreEvent = onScoreEvent;
@@ -323,6 +340,10 @@ export class GameController {
     this.onPressureWarning = onPressureWarning;
     this.onLegendaryChainEvent = onLegendaryChainEvent;
     this.onLegendaryChainStateChange = onLegendaryChainStateChange;
+    this.onTutorialStateChange = onTutorialStateChange;
+    this.onTutorialStepComplete = onTutorialStepComplete;
+    this.onTutorialComplete = onTutorialComplete;
+    this.onTutorialError = onTutorialError;
 
     this.scoreSystem.setStateCallbacks(
       (state) => this.onStateChange?.(state),
@@ -364,6 +385,7 @@ export class GameController {
     this.collectedCount = 0;
     this.collectedCreaturesAndWrecks = 0;
     this.lastRechargeTime = Date.now();
+    this.lastSonarDiscoveryCount = 0;
     this.playerPosition = {
       x: GAME_CONFIG.MAP_WIDTH / 2,
       y: 80,
@@ -376,6 +398,9 @@ export class GameController {
     this.legendaryChainSystem.reset();
 
     this.applyMissionStartEffects();
+
+    this.tutorialSystem.reset();
+    this.tutorialSystem.start();
 
     if (!this.isInitialized) {
       this.isInitialized = true;
@@ -466,6 +491,11 @@ export class GameController {
       this.missionSystem.onDiscoverTarget();
     }
 
+    if (discoveredTargetIds.length > 0) {
+      const state = this.scoreSystem.getState();
+      this.tutorialSystem.recordAction('TARGET_DISCOVERED', state.level, discoveredTargetIds.length);
+    }
+
     this.legendaryChainSystem.update(delta, this.targets);
 
     this.renderer.updateCamera(this.playerPosition.y);
@@ -477,6 +507,10 @@ export class GameController {
 
     const state = this.scoreSystem.getState();
     this.renderer.updateDepthEffects(state.depth, state.pressureIntegrity, state.maxPressureIntegrity);
+
+    if (state.depth >= 200) {
+      this.tutorialSystem.recordAction('DEPTH_200_REACHED', state.level);
+    }
 
     const now = Date.now();
     const rechargeModifier = this.getSonarRechargeModifier();
@@ -516,9 +550,16 @@ export class GameController {
   }
 
   fireSonar(position: Position): boolean {
+    const state = this.scoreSystem.getState();
+    if (state.sonarCharges <= 0) {
+      this.tutorialSystem.recordError('NO_SONAR_CHARGE', state.level);
+      return false;
+    }
+
     if (!this.scoreSystem.useSonar()) return false;
 
     this.missionSystem.onFireSonar();
+    this.tutorialSystem.recordAction('SONAR_FIRED', state.level);
 
     const worldPos = { ...position };
     const radiusModifier = this.oceanEventSystem.getSonarRadiusModifier(worldPos);
@@ -624,8 +665,16 @@ export class GameController {
 
         if (target.type === 'danger') {
           this.legendaryChainSystem.onDangerHit();
+          this.tutorialSystem.recordError('HIT_DANGER', state.level);
+        } else if (target.type === 'creature') {
+          this.legendaryChainSystem.onTargetCollected(target, this.targets);
+          this.tutorialSystem.recordAction('CREATURE_COLLECTED', state.level);
+        } else if (target.type === 'wreck') {
+          this.legendaryChainSystem.onTargetCollected(target, this.targets);
+          this.tutorialSystem.recordAction('WRECK_COLLECTED', state.level);
         } else {
           this.legendaryChainSystem.onTargetCollected(target, this.targets);
+          this.tutorialSystem.recordAction('TARGET_COLLECTED', state.level);
         }
 
         const eventWreck = this.eventWreckMap.get(target.id);
@@ -648,6 +697,7 @@ export class GameController {
           this.injectEventWrecks(levelUpState.level);
           this.missionSystem.setLevelTargetCounts(levelUpState.level, this.countCollectibleTargets());
           this.oceanEventSystem.setLevel(levelUpState.level);
+          this.tutorialSystem.recordAction('LEVEL_UP', levelUpState.level - 1);
           this.onLevelUp?.(levelUpState.level);
         }
 
@@ -700,6 +750,14 @@ export class GameController {
 
   getLegendaryChainSystem(): LegendaryChainSystem {
     return this.legendaryChainSystem;
+  }
+
+  getTutorialSystem(): TutorialSystem {
+    return this.tutorialSystem;
+  }
+
+  setTutorialFirstGame(isFirstGame: boolean): void {
+    this.tutorialSystem.setFirstGame(isFirstGame);
   }
 
   getSessionUnlocks() {

@@ -46,6 +46,33 @@
       </div>
     </div>
 
+    <div class="tutorial-panel" v-if="tutorialState && tutorialState.isTutorialMode && !tutorialState.tutorialComplete">
+      <div class="tutorial-header">
+        <span class="tutorial-icon">📘</span>
+        <span class="tutorial-title">新手引导</span>
+        <span class="tutorial-step-badge">{{ tutorialState.currentStepIndex + 1 }}/{{ tutorialTotalSteps }}</span>
+      </div>
+      <div class="tutorial-step-info" v-if="currentStepConfig">
+        <div class="tutorial-step-title">{{ currentStepConfig.title }}</div>
+        <div class="tutorial-step-desc">{{ currentStepConfig.description }}</div>
+        <div class="tutorial-action-hint" v-if="currentStepConfig.actionHint">
+          <span class="hint-arrow">➜</span>
+          {{ currentStepConfig.actionHint }}
+        </div>
+      </div>
+      <div class="tutorial-progress-bar">
+        <div class="tutorial-progress-fill" :style="{ width: tutorialProgressPercent + '%' }"></div>
+      </div>
+    </div>
+
+    <div class="error-hint-panel" v-if="tutorialState && tutorialState.showErrorHint && tutorialState.errorHintMessage">
+      <div class="error-hint-icon">⚠</div>
+      <div class="error-hint-content">
+        <div class="error-hint-title">操作提示</div>
+        <div class="error-hint-message">{{ tutorialState.errorHintMessage }}</div>
+      </div>
+    </div>
+
     <div class="mission-panel" v-if="missions && missions.length > 0">
       <div class="mission-panel-header" @click="missionExpanded = !missionExpanded">
         <span class="mission-panel-icon">📋</span>
@@ -250,7 +277,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { GameState, OceanEvent, Mission, DepthZoneId, LegendaryChainState, LegendaryChainEvent } from '../types/game';
+import type { GameState, OceanEvent, Mission, DepthZoneId, LegendaryChainState, LegendaryChainEvent, TutorialState, TutorialStepConfig } from '../types/game';
+import { TUTORIAL_STEPS } from '../config/gameConfig';
 import { getEventColor } from '../config/oceanEvents';
 import { DEPTH_ZONES } from '../game/ScoreSystem';
 
@@ -262,6 +290,7 @@ const props = defineProps<{
   activeEvents?: OceanEvent[];
   missions?: Mission[];
   legendaryChainState?: LegendaryChainState;
+  tutorialState?: TutorialState | null;
 }>();
 
 interface EventNotification {
@@ -524,6 +553,33 @@ const legendaryTimerPercent = computed(() => {
   const state = props.legendaryChainState;
   if (!state || state.trackedTimerMax <= 0) return 0;
   return Math.max(0, (state.trackedTimerRemaining / state.trackedTimerMax) * 100);
+});
+
+const tutorialSteps = computed<TutorialStepConfig[]>(() => {
+  return TUTORIAL_STEPS;
+});
+
+const tutorialTotalSteps = computed(() => {
+  return tutorialSteps.value.length;
+});
+
+const tutorialStepsConfig = computed<Record<string, TutorialStepConfig>>(() => {
+  const config: Record<string, TutorialStepConfig> = {};
+  for (const step of TUTORIAL_STEPS) {
+    config[step.id] = step;
+  }
+  return config;
+});
+
+const currentStepConfig = computed<TutorialStepConfig | null>(() => {
+  if (!props.tutorialState) return null;
+  const stepId = props.tutorialState.currentStep;
+  return tutorialStepsConfig.value[stepId] || null;
+});
+
+const tutorialProgressPercent = computed(() => {
+  if (!props.tutorialState || tutorialTotalSteps.value === 0) return 0;
+  return ((props.tutorialState.currentStepIndex + 1) / tutorialTotalSteps.value) * 100;
 });
 
 defineExpose({
@@ -1570,5 +1626,186 @@ defineExpose({
     opacity: 1;
     transform: scale(1);
   }
+}
+
+.tutorial-panel {
+  position: absolute;
+  top: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(0, 50, 80, 0.92), rgba(0, 30, 60, 0.95));
+  border: 1px solid rgba(100, 200, 255, 0.5);
+  border-radius: 12px;
+  padding: 12px 16px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 25px rgba(100, 200, 255, 0.25);
+  min-width: 280px;
+  max-width: 400px;
+  z-index: 22;
+  animation: tutorial-panel-in 0.5s ease-out;
+}
+
+@keyframes tutorial-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.tutorial-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(100, 200, 255, 0.25);
+}
+
+.tutorial-icon {
+  font-size: 18px;
+}
+
+.tutorial-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: bold;
+  color: rgba(100, 220, 255, 0.95);
+  letter-spacing: 1px;
+}
+
+.tutorial-step-badge {
+  font-size: 10px;
+  font-weight: bold;
+  color: rgba(100, 200, 255, 0.8);
+  background: rgba(100, 200, 255, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-family: 'Courier New', monospace;
+}
+
+.tutorial-step-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tutorial-step-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 8px rgba(100, 200, 255, 0.3);
+}
+
+.tutorial-step-desc {
+  font-size: 12px;
+  color: rgba(220, 240, 255, 0.85);
+  line-height: 1.5;
+}
+
+.tutorial-action-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: rgba(0, 180, 255, 0.15);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 180, 255, 0.3);
+}
+
+.hint-arrow {
+  color: #00ccff;
+  font-weight: bold;
+  animation: hint-arrow-bounce 1.5s ease-in-out infinite;
+}
+
+@keyframes hint-arrow-bounce {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+.tutorial-action-hint {
+  font-size: 12px;
+  color: rgba(180, 240, 255, 0.95);
+  font-weight: 500;
+}
+
+.tutorial-progress-bar {
+  margin-top: 10px;
+  height: 4px;
+  background: rgba(100, 200, 255, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.tutorial-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00aaff, #66ddff);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  box-shadow: 0 0 6px rgba(0, 170, 255, 0.5);
+}
+
+.error-hint-panel {
+  position: absolute;
+  top: 310px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(120, 60, 0, 0.92), rgba(80, 40, 0, 0.95));
+  border: 1px solid rgba(255, 180, 80, 0.6);
+  border-radius: 10px;
+  padding: 10px 14px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(255, 150, 50, 0.3);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 260px;
+  max-width: 380px;
+  z-index: 23;
+  animation: error-hint-in 0.35s ease-out;
+}
+
+@keyframes error-hint-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.error-hint-icon {
+  font-size: 20px;
+  color: #ffaa44;
+  flex-shrink: 0;
+  text-shadow: 0 0 8px rgba(255, 170, 50, 0.6);
+}
+
+.error-hint-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.error-hint-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: rgba(255, 200, 120, 0.95);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.error-hint-message {
+  font-size: 12px;
+  color: rgba(255, 240, 220, 0.95);
+  line-height: 1.4;
 }
 </style>

@@ -151,6 +151,33 @@ export class TargetGenerator {
     return false;
   }
 
+  private calculateDangerCount(level: number, baseDanger: number): number {
+    const rawDanger = Math.round(baseDanger * this.multipliers.dangerCountMul);
+
+    if (GAME_CONFIG.TUTORIAL.ENABLED && level <= GAME_CONFIG.TUTORIAL.NEWBIE_MAX_LEVELS) {
+      let modifier: { minCount: number; maxCount: number; ratio: number };
+
+      if (level === 1) {
+        modifier = {
+          minCount: GAME_CONFIG.TUTORIAL.DANGER_REDUCTION.LEVEL_1_MIN_DANGER,
+          maxCount: GAME_CONFIG.TUTORIAL.DANGER_REDUCTION.LEVEL_1_MAX_DANGER,
+          ratio: GAME_CONFIG.TUTORIAL.DANGER_REDUCTION.LEVEL_1_DANGER_RATIO,
+        };
+      } else {
+        modifier = {
+          minCount: GAME_CONFIG.TUTORIAL.DANGER_REDUCTION.LEVEL_2_MIN_DANGER,
+          maxCount: GAME_CONFIG.TUTORIAL.DANGER_REDUCTION.LEVEL_2_MAX_DANGER,
+          ratio: GAME_CONFIG.TUTORIAL.DANGER_REDUCTION.LEVEL_2_DANGER_RATIO,
+        };
+      }
+
+      const adjustedCount = Math.max(1, Math.round(rawDanger * modifier.ratio));
+      return Math.max(modifier.minCount, Math.min(modifier.maxCount, adjustedCount));
+    }
+
+    return Math.max(1, rawDanger);
+  }
+
   generateTargets(level: number): Target[] {
     const targets: Target[] = [];
     const cfg = this.customConfig ?? GAME_CONFIG;
@@ -173,7 +200,8 @@ export class TargetGenerator {
       const baseDanger = GAME_CONFIG.TARGETS.DANGER_COUNT + Math.floor(level / 2);
       creatureCount = Math.max(1, Math.round(baseCreature * this.multipliers.creatureCountMul));
       wreckCount = Math.max(1, Math.round(baseWreck * this.multipliers.wreckCountMul));
-      dangerCount = Math.max(1, Math.round(baseDanger * this.multipliers.dangerCountMul));
+
+      dangerCount = this.calculateDangerCount(level, baseDanger);
     }
 
     const addTarget = (type: TargetType) => {

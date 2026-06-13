@@ -12,6 +12,7 @@
       :active-events="activeOceanEvents"
       :missions="activeMissions"
       :legendary-chain-state="legendaryChainState"
+      :tutorial-state="tutorialState"
     />
 
     <RelayGameHUD
@@ -126,7 +127,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward, VoyageRecord, OceanThemeId, LegendaryChainState, LegendaryChainEvent } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward, VoyageRecord, OceanThemeId, LegendaryChainState, LegendaryChainEvent, TutorialState, TutorialStepId, TutorialErrorType, TutorialStepConfig, TutorialErrorConfig } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -185,6 +186,8 @@ const totalExpeditionPoints = ref(0);
 const showSettlementDetail = ref(false);
 const lastVoyageRecord = ref<VoyageRecord | null>(null);
 const legendaryChainState = ref<LegendaryChainState | undefined>(undefined);
+const tutorialState = ref<TutorialState | null>(null);
+const isFirstGame = ref(true);
 
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
@@ -495,6 +498,22 @@ const handleLegendaryChainStateChange = (state: LegendaryChainState) => {
   legendaryChainState.value = state;
 };
 
+const handleTutorialStateChange = (state: TutorialState) => {
+  tutorialState.value = { ...state };
+};
+
+const handleTutorialStepComplete = (_stepId: TutorialStepId) => {};
+
+const handleTutorialComplete = () => {};
+
+const handleTutorialError = (_errorType: TutorialErrorType, _config: TutorialErrorConfig) => {};
+
+const refreshTutorialState = () => {
+  if (gameController) {
+    tutorialState.value = gameController.getTutorialSystem().getState();
+  }
+};
+
 const refreshLegendaryChain = () => {
   if (gameController) {
     legendaryChainState.value = gameController.getLegendaryChainSystem().getState();
@@ -649,6 +668,10 @@ const handleStart = () => {
   gameController?.startGame();
   voyageArchiveSystem.startVoyage('normal', currentLoadout.value);
   lastExpeditionReward.value = null;
+  refreshTutorialState();
+  try {
+    localStorage.setItem('deepSeaSonar_hasPlayed', 'true');
+  } catch (_e) {}
   setTimeout(() => {
     showHint.value = false;
   }, 5000);
@@ -665,6 +688,10 @@ const handlePrepStart = (loadout: ExpeditionLoadout) => {
   gameController?.startGame();
   voyageArchiveSystem.startVoyage('normal', currentLoadout.value);
   lastExpeditionReward.value = null;
+  refreshTutorialState();
+  try {
+    localStorage.setItem('deepSeaSonar_hasPlayed', 'true');
+  } catch (_e) {}
   setTimeout(() => {
     showHint.value = false;
   }, 5000);
@@ -752,6 +779,7 @@ const handleHome = () => {
   lastExpeditionReward.value = null;
   lastVoyageRecord.value = null;
   showSettlementDetail.value = false;
+  tutorialState.value = null;
   refreshCollection();
 
   if (relaySystem) {
@@ -862,6 +890,10 @@ onMounted(() => {
         voiceprintHighScore.value = parseInt(savedVoiceprintScore, 10) || 0;
       } catch (_e) {}
     }
+    const hasPlayedBefore = localStorage.getItem('deepSeaSonar_hasPlayed');
+    if (hasPlayedBefore) {
+      isFirstGame.value = false;
+    }
   } catch (_e) {}
 
   refreshCollection();
@@ -874,6 +906,7 @@ onMounted(() => {
     gameController = new GameController(canvasRef.value, collectionSystem, salvageEventSystem);
     gameController.setOceanTheme(currentOceanTheme.value);
     gameController.setLoadout(currentLoadout.value);
+    gameController.setTutorialFirstGame(isFirstGame.value);
     gameController.setCallbacks(
       updateState,
       handleScoreEvent,
@@ -889,7 +922,11 @@ onMounted(() => {
       handleComboEvent,
       handlePressureWarning,
       handleLegendaryChainEvent,
-      handleLegendaryChainStateChange
+      handleLegendaryChainStateChange,
+      handleTutorialStateChange,
+      handleTutorialStepComplete,
+      handleTutorialComplete,
+      handleTutorialError
     );
   }
 
@@ -918,6 +955,13 @@ onMounted(() => {
     }
   }, 100);
   (window as any).__legendaryTimer = legendaryTimer;
+
+  const tutorialTimer = window.setInterval(() => {
+    if (gameState.isPlaying && !gameState.isPaused) {
+      refreshTutorialState();
+    }
+  }, 150);
+  (window as any).__tutorialTimer = tutorialTimer;
 });
 
 onUnmounted(() => {
@@ -939,6 +983,10 @@ onUnmounted(() => {
   const legendaryTimer = (window as any).__legendaryTimer;
   if (legendaryTimer) {
     clearInterval(legendaryTimer);
+  }
+  const tutorialTimer = (window as any).__tutorialTimer;
+  if (tutorialTimer) {
+    clearInterval(tutorialTimer);
   }
 });
 </script>
