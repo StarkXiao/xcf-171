@@ -325,6 +325,7 @@ export class GameController {
   }
 
   startGame() {
+    this.setOceanTheme(this.oceanThemeId);
     const state = this.scoreSystem.getState();
     this.targets = this.targetGenerator.generateTargets(state.level);
     this.eventWreckMap.clear();

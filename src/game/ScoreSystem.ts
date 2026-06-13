@@ -34,6 +34,15 @@ export class ScoreSystem {
     dangerLifePenaltyMul: number;
     dangerScorePenaltyMul: number;
   };
+  private baseParams: {
+    initialLivesBonus: number;
+    initialLivesOverride: number | null;
+    maxSonarCharges: number;
+    initialSonarBonus: number;
+    scoreMul: number;
+    dangerLifePenaltyMul: number;
+    dangerScorePenaltyMul: number;
+  };
   private oceanThemeId: OceanThemeId = DEFAULT_OCEAN_THEME_ID;
 
   private lastCollectTime: number = 0;
@@ -59,36 +68,39 @@ export class ScoreSystem {
       dangerLifePenaltyMul: params.dangerLifePenaltyMul ?? 1,
       dangerScorePenaltyMul: params.dangerScorePenaltyMul ?? 1,
     };
+    this.baseParams = { ...this.params };
     this.state = this.createInitialState();
   }
 
   setParams(params: ScoreSystemParams) {
-    this.params = {
-      initialLivesBonus: params.initialLivesBonus ?? this.params.initialLivesBonus,
-      initialLivesOverride: params.initialLivesOverride !== undefined ? params.initialLivesOverride : this.params.initialLivesOverride,
-      maxSonarCharges: params.maxSonarCharges ?? this.params.maxSonarCharges,
-      initialSonarBonus: params.initialSonarBonus ?? this.params.initialSonarBonus,
-      scoreMul: params.scoreMul ?? this.params.scoreMul,
-      dangerLifePenaltyMul: params.dangerLifePenaltyMul ?? this.params.dangerLifePenaltyMul,
-      dangerScorePenaltyMul: params.dangerScorePenaltyMul ?? this.params.dangerScorePenaltyMul,
+    this.baseParams = {
+      initialLivesBonus: params.initialLivesBonus ?? this.baseParams.initialLivesBonus,
+      initialLivesOverride: params.initialLivesOverride !== undefined ? params.initialLivesOverride : this.baseParams.initialLivesOverride,
+      maxSonarCharges: params.maxSonarCharges ?? this.baseParams.maxSonarCharges,
+      initialSonarBonus: params.initialSonarBonus ?? this.baseParams.initialSonarBonus,
+      scoreMul: params.scoreMul ?? this.baseParams.scoreMul,
+      dangerLifePenaltyMul: params.dangerLifePenaltyMul ?? this.baseParams.dangerLifePenaltyMul,
+      dangerScorePenaltyMul: params.dangerScorePenaltyMul ?? this.baseParams.dangerScorePenaltyMul,
     };
+    this.params = { ...this.baseParams };
+    const theme = getOceanTheme(this.oceanThemeId);
+    this.applyOceanThemeEffects(theme);
   }
 
   setOceanTheme(themeId: OceanThemeId) {
     this.oceanThemeId = themeId;
+    this.params = { ...this.baseParams };
     const theme = getOceanTheme(themeId);
-    
+    this.applyOceanThemeEffects(theme);
+  }
+
+  private applyOceanThemeEffects(theme: ReturnType<typeof getOceanTheme>) {
     const dangerDamageRule = theme.riskRules.find(r => r.type === 'danger_damage');
     const livesRule = theme.riskRules.find(r => r.type === 'lives_initial');
-    const sonarRechargeRule = theme.riskRules.find(r => r.type === 'sonar_recharge');
     
-    if (dangerDamageRule) {
-      this.params.dangerLifePenaltyMul *= dangerDamageRule.value;
-      this.params.dangerScorePenaltyMul *= dangerDamageRule.value;
-    }
-    if (livesRule) {
-      this.params.initialLivesBonus += livesRule.value;
-    }
+    this.params.dangerLifePenaltyMul = this.baseParams.dangerLifePenaltyMul * (dangerDamageRule?.value ?? 1);
+    this.params.dangerScorePenaltyMul = this.baseParams.dangerScorePenaltyMul * (dangerDamageRule?.value ?? 1);
+    this.params.initialLivesBonus = this.baseParams.initialLivesBonus + (livesRule?.value ?? 0);
   }
 
   getOceanThemeId(): OceanThemeId {

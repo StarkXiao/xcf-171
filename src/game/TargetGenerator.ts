@@ -50,7 +50,10 @@ export class TargetGenerator {
   }
 
   setMultipliers(mults: TargetMultipliers) {
-    this.multipliers = mults;
+    this.baseMultipliers = { ...mults };
+    this.multipliers = { ...mults };
+    const theme = getOceanTheme(this.oceanThemeId);
+    this.applyOceanThemeEffects(theme);
   }
 
   setSeed(seed: number | null) {
@@ -68,14 +71,18 @@ export class TargetGenerator {
 
   setOceanTheme(themeId: OceanThemeId) {
     this.oceanThemeId = themeId;
+    this.multipliers = { ...this.baseMultipliers };
     const theme = getOceanTheme(themeId);
-    
+    this.applyOceanThemeEffects(theme);
+  }
+
+  private applyOceanThemeEffects(theme: OceanTheme) {
     const dangerCountRule = theme.riskRules.find(r => r.type === 'danger_count');
     const targetDensityRule = theme.riskRules.find(r => r.type === 'target_density');
     
-    this.multipliers.dangerCountMul *= dangerCountRule?.value ?? 1;
-    this.multipliers.creatureCountMul *= targetDensityRule?.value ?? 1;
-    this.multipliers.wreckCountMul *= targetDensityRule?.value ?? 1;
+    this.multipliers.dangerCountMul = this.baseMultipliers.dangerCountMul * (dangerCountRule?.value ?? 1);
+    this.multipliers.creatureCountMul = this.baseMultipliers.creatureCountMul * (targetDensityRule?.value ?? 1);
+    this.multipliers.wreckCountMul = this.baseMultipliers.wreckCountMul * (targetDensityRule?.value ?? 1);
   }
 
   getCurrentTheme(): OceanTheme {
