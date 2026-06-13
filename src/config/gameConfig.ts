@@ -1,6 +1,12 @@
 export const GAME_CONFIG = {
   MAP_WIDTH: 800,
   MAP_HEIGHT: 1200,
+  PLAYER: {
+    MOVE_SPEED: 120,
+    MOVE_LERP: 0.12,
+    AUTO_DESCENT_SPEED: 18,
+    HORIZONTAL_LERP: 0.08,
+  },
   SONAR: {
     MAX_RADIUS: 500,
     SPEED: 280,

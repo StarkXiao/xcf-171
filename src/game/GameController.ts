@@ -25,6 +25,7 @@ export class GameController {
 
   private targets: Target[] = [];
   private playerPosition: Position;
+  private moveTarget: Position | null = null;
   private isInitialized: boolean = false;
   private lastRechargeTime: number = 0;
   private collectedCount: number = 0;
@@ -347,6 +348,7 @@ export class GameController {
       x: GAME_CONFIG.MAP_WIDTH / 2,
       y: 80,
     };
+    this.moveTarget = null;
 
     this.missionSystem.reset();
     this.missionSystem.generateMissions(state.level);
@@ -430,6 +432,8 @@ export class GameController {
   }
 
   private update(delta: number) {
+    this.updatePlayerPosition(delta);
+
     this.renderer.updateParticles(delta);
 
     this.oceanEventSystem.update(delta, this.playerPosition);
@@ -511,10 +515,40 @@ export class GameController {
     return true;
   }
 
-  movePlayer(targetY: number) {
+  setMoveTarget(worldPos: Position) {
     const mapSize = this.renderer.getMapSize();
-    targetY = Math.max(50, Math.min(mapSize.height - 50, targetY));
-    this.playerPosition.y += (targetY - this.playerPosition.y) * 0.15;
+    this.moveTarget = {
+      x: Math.max(50, Math.min(mapSize.width - 50, worldPos.x)),
+      y: Math.max(50, Math.min(mapSize.height - 50, worldPos.y)),
+    };
+  }
+
+  private updatePlayerPosition(delta: number) {
+    const mapSize = this.renderer.getMapSize();
+    const speed = GAME_CONFIG.PLAYER.MOVE_SPEED * this.currentEffects.moveSpeedMul * delta;
+    const lerp = GAME_CONFIG.PLAYER.MOVE_LERP;
+    const hLerp = GAME_CONFIG.PLAYER.HORIZONTAL_LERP;
+
+    if (this.moveTarget) {
+      const dx = this.moveTarget.x - this.playerPosition.x;
+      const dy = this.moveTarget.y - this.playerPosition.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > 2) {
+        const moveAmount = Math.min(speed, dist);
+        const ratio = moveAmount / dist;
+        this.playerPosition.x += dx * lerp;
+        this.playerPosition.y += dy * lerp;
+      } else {
+        this.moveTarget = null;
+      }
+    }
+
+    const autoDescent = GAME_CONFIG.PLAYER.AUTO_DESCENT_SPEED * this.currentEffects.moveSpeedMul * delta;
+    this.playerPosition.y += autoDescent;
+
+    this.playerPosition.x = Math.max(50, Math.min(mapSize.width - 50, this.playerPosition.x));
+    this.playerPosition.y = Math.max(50, Math.min(mapSize.height - 50, this.playerPosition.y));
   }
 
   handleTap(worldPos: Position): { hit: boolean; target?: Target } {

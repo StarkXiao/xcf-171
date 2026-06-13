@@ -802,6 +802,8 @@ const processInteraction = (worldPos: { x: number; y: number }, _screenX: number
   } else {
     if (!gameController) return;
 
+    gameController.setMoveTarget(worldPos);
+
     const result = gameController.handleTap(worldPos);
     if (!result.hit) {
       gameController.fireSonar(worldPos);

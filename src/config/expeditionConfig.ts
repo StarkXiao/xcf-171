@@ -251,6 +251,7 @@ export function computeLoadoutEffects(loadout: ExpeditionLoadout): LoadoutEffect
     discoveryEfficiencyMul: detector.stats.discoveryEfficiencyMul,
     dangerLifePenaltyMul: detector.stats.dangerLifePenaltyMul,
     dangerScorePenaltyMul: detector.stats.dangerScorePenaltyMul,
+    moveSpeedMul: sub.stats.moveSpeedMul,
   };
 }
 

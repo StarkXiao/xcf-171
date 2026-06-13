@@ -220,6 +220,7 @@ export interface LoadoutEffects {
   discoveryEfficiencyMul: number;
   dangerLifePenaltyMul: number;
   dangerScorePenaltyMul: number;
+  moveSpeedMul: number;
 }
 
 export type DailyChallengeRuleType =
