@@ -113,7 +113,7 @@ export class LegendaryChainSystem {
     return event;
   }
 
-  onTargetCollected(target: Target): LegendaryChainEvent[] {
+  onTargetCollected(target: Target, allTargets: Target[]): LegendaryChainEvent[] {
     const events: LegendaryChainEvent[] = [];
 
     if (target.type === 'danger') {
@@ -182,7 +182,7 @@ export class LegendaryChainSystem {
         this.applyReward(reward);
       }
 
-      const nextLegendary = this.findNextLegendaryTarget([]);
+      const nextLegendary = this.findNextLegendaryTarget(allTargets, [target.id]);
       if (nextLegendary) {
         this.startTracking(nextLegendary);
       }
@@ -262,8 +262,29 @@ export class LegendaryChainSystem {
     }
   }
 
-  private findNextLegendaryTarget(excludeIds: number[]): Target | null {
-    return null;
+  private findNextLegendaryTarget(targets: Target[], excludeIds: number[]): Target | null {
+    let closest: Target | null = null;
+    let closestDist = Infinity;
+
+    for (const t of targets) {
+      if (t.rarity !== 'legendary') continue;
+      if (t.collected) continue;
+      if (t.isLegendaryTracked) continue;
+      if (excludeIds.includes(t.id)) continue;
+      if (this.state.trackedTargetId !== null && t.id === this.state.trackedTargetId) continue;
+
+      if (!closest) {
+        closest = t;
+      } else {
+        closest = t;
+      }
+    }
+
+    if (closest && !closest.discovered) {
+      closest.discovered = true;
+    }
+
+    return closest;
   }
 
   getNextChainMilestone(): LegendaryChainReward | null {

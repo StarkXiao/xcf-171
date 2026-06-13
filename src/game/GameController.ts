@@ -625,7 +625,7 @@ export class GameController {
         if (target.type === 'danger') {
           this.legendaryChainSystem.onDangerHit();
         } else {
-          this.legendaryChainSystem.onTargetCollected(target);
+          this.legendaryChainSystem.onTargetCollected(target, this.targets);
         }
 
         const eventWreck = this.eventWreckMap.get(target.id);

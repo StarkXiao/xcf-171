@@ -5,6 +5,7 @@
     <FloatingScore ref="floatingScoreRef" />
 
     <GameHUD
+      ref="gameHudRef"
       v-if="gameState.isPlaying && !gameState.isGameOver && !isRelayMode"
       :state="gameState"
       :show-hint="showHint"
@@ -151,6 +152,7 @@ import VoyageSettlementDetail from './components/VoyageSettlementDetail.vue';
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
 const floatingScoreRef = ref<InstanceType<typeof FloatingScore> | null>(null);
+const gameHudRef = ref<InstanceType<typeof GameHUD> | null>(null);
 
 const gameStarted = ref(false);
 const showHint = ref(true);
@@ -485,9 +487,7 @@ const handleMissionEffectsChanged = (_effects: MissionEffect[]) => {
 };
 
 const handleLegendaryChainEvent = (event: LegendaryChainEvent) => {
-  const hud = document.querySelector('.game-hud');
-  if (hud && (hud as any).__vue_app__) {
-  }
+  gameHudRef.value?.addLegendaryNotification(event);
   refreshLegendaryChain();
 };
 
