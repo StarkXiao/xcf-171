@@ -18,6 +18,14 @@ export interface TargetMultipliers {
 export class TargetGenerator {
   private width: number;
   private height: number;
+  private baseMultipliers: TargetMultipliers = {
+    creatureCountMul: 1,
+    wreckCountMul: 1,
+    dangerCountMul: 1,
+    creaturePointsBonus: 0,
+    wreckPointsBonus: 0,
+    scoreMul: 1,
+  };
   private multipliers: TargetMultipliers = {
     creatureCountMul: 1,
     wreckCountMul: 1,
