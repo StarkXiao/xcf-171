@@ -3,6 +3,8 @@ export interface Position {
   y: number;
 }
 
+export type TargetRarity = 'common' | 'rare' | 'legendary';
+
 export type TargetType = 'creature' | 'wreck' | 'danger';
 
 export type DangerIdentificationPhase = 'undetected' | 'suspected' | 'confirmed';
@@ -20,6 +22,10 @@ export interface Target {
   rotation: number;
   enhancedByEvent?: OceanEventType;
   dangerPhase?: DangerIdentificationPhase;
+  rarity?: TargetRarity;
+  legendaryTimer?: number;
+  legendaryTimerMax?: number;
+  isLegendaryTracked?: boolean;
 }
 
 export interface CollectionEntry {
@@ -1200,6 +1206,54 @@ export interface OceanTheme {
 export interface OceanThemeState {
   currentThemeId: OceanThemeId;
   availableThemes: OceanThemeId[];
+}
+
+export type LegendaryChainStatus = 'idle' | 'tracking' | 'completed' | 'broken';
+
+export interface LegendaryChainReward {
+  chainLength: number;
+  bonusPoints: number;
+  bonusLives: number;
+  bonusSonarCharges: number;
+  achievementName: string;
+  achievementDescription: string;
+}
+
+export interface LegendaryChainState {
+  status: LegendaryChainStatus;
+  currentChainLength: number;
+  maxChainLength: number;
+  requiredChainLength: number;
+  trackedTargetId: number | null;
+  trackedTimerRemaining: number;
+  trackedTimerMax: number;
+  completedChains: number;
+  totalLegendaryCollected: number;
+  chainRewards: LegendaryChainReward[];
+  lastChainBreakReason: string | null;
+}
+
+export interface LegendaryChainEvent {
+  type: 'chain_started' | 'chain_progress' | 'chain_completed' | 'chain_broken' | 'legendary_discovered' | 'legendary_collected' | 'legendary_expired' | 'tracking_started' | 'tracking_warning';
+  chainLength: number;
+  targetId?: number;
+  targetName?: string;
+  reward?: LegendaryChainReward;
+  reason?: string;
+  timerRemaining?: number;
+}
+
+export interface LegendaryTargetConfig {
+  spawnChance: number;
+  minLevelForSpawn: number;
+  timerDuration: number;
+  timerWarningThreshold: number;
+  pointsMultiplier: number;
+  chainLengths: LegendaryChainReward[];
+  specialEchoColor: number;
+  specialEchoSizeMultiplier: number;
+  specialEchoLifeMultiplier: number;
+  specialEchoCount: number;
 }
 
 

@@ -10,6 +10,7 @@
       :show-hint="showHint"
       :active-events="activeOceanEvents"
       :missions="activeMissions"
+      :legendary-chain-state="legendaryChainState"
     />
 
     <RelayGameHUD
@@ -124,7 +125,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
-import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward, VoyageRecord, OceanThemeId } from './types/game';
+import type { GameState, UnlockEvent, CollectionData, ExpeditionLoadout, RelayGameState, RelayResult, RelayEvent, SalvageEventState, SalvageEventType, VoiceprintVerdict, OceanEvent, Mission, MissionResult, MissionEffect, DetectorTier, ComboEvent, ComboStats, ExpeditionReward, VoyageRecord, OceanThemeId, LegendaryChainState, LegendaryChainEvent } from './types/game';
 import { GameController } from './game/GameController';
 import { CollectionSystem } from './game/CollectionSystem';
 import { RelayModeSystem } from './game/RelayModeSystem';
@@ -181,6 +182,7 @@ const lastExpeditionReward = ref<ExpeditionReward | null>(null);
 const totalExpeditionPoints = ref(0);
 const showSettlementDetail = ref(false);
 const lastVoyageRecord = ref<VoyageRecord | null>(null);
+const legendaryChainState = ref<LegendaryChainState | undefined>(undefined);
 
 const collectionSystem = new CollectionSystem();
 const voyageArchiveSystem = new VoyageArchiveSystem();
@@ -480,6 +482,23 @@ const handleMissionProgress = (_mission: Mission) => {
 
 const handleMissionEffectsChanged = (_effects: MissionEffect[]) => {
   refreshMissions();
+};
+
+const handleLegendaryChainEvent = (event: LegendaryChainEvent) => {
+  const hud = document.querySelector('.game-hud');
+  if (hud && (hud as any).__vue_app__) {
+  }
+  refreshLegendaryChain();
+};
+
+const handleLegendaryChainStateChange = (state: LegendaryChainState) => {
+  legendaryChainState.value = state;
+};
+
+const refreshLegendaryChain = () => {
+  if (gameController) {
+    legendaryChainState.value = gameController.getLegendaryChainSystem().getState();
+  }
 };
 
 const refreshMissions = () => {
@@ -868,7 +887,9 @@ onMounted(() => {
       handleMissionProgress,
       handleMissionEffectsChanged,
       handleComboEvent,
-      handlePressureWarning
+      handlePressureWarning,
+      handleLegendaryChainEvent,
+      handleLegendaryChainStateChange
     );
   }
 
@@ -890,6 +911,13 @@ onMounted(() => {
     }
   }, 500);
   (window as any).__missionTimer = missionTimer;
+
+  const legendaryTimer = window.setInterval(() => {
+    if (gameState.isPlaying && !gameState.isPaused) {
+      refreshLegendaryChain();
+    }
+  }, 100);
+  (window as any).__legendaryTimer = legendaryTimer;
 });
 
 onUnmounted(() => {
@@ -907,6 +935,10 @@ onUnmounted(() => {
   const missionTimer = (window as any).__missionTimer;
   if (missionTimer) {
     clearInterval(missionTimer);
+  }
+  const legendaryTimer = (window as any).__legendaryTimer;
+  if (legendaryTimer) {
+    clearInterval(legendaryTimer);
   }
 });
 </script>

@@ -1,4 +1,4 @@
-import type { Target, TargetType, Position, OceanTheme, DepthZoneInfo } from '../types/game';
+import type { Target, TargetType, TargetRarity, Position, OceanTheme, DepthZoneInfo } from '../types/game';
 import { GAME_CONFIG, CREATURE_NAMES, WRECK_NAMES, DANGER_NAMES } from '../config/gameConfig';
 import { SeededRandom } from './SeededRandom';
 import { getOceanTheme, DEFAULT_OCEAN_THEME_ID } from '../config/oceanThemes';
@@ -184,25 +184,53 @@ export class TargetGenerator {
         if (!this.isOverlapping(pos, radius, targets)) {
           let name = '';
           let points = 0;
+          let rarity: TargetRarity = 'common';
+
+          const rng = this.rng ? this.rng.next() : Math.random();
+          const canSpawnLegendary = level >= GAME_CONFIG.LEGENDARY_CHAIN.MIN_LEVEL_FOR_SPAWN && type !== 'danger';
+
+          if (canSpawnLegendary && rng < GAME_CONFIG.LEGENDARY_CHAIN.SPAWN_CHANCE) {
+            rarity = 'legendary';
+            const legendaryNames = GAME_CONFIG.LEGENDARY_CHAIN.LEGENDARY_NAMES[type as 'creature' | 'wreck'];
+            name = legendaryNames[Math.floor((this.rng ? this.rng.next() : Math.random()) * legendaryNames.length)];
+          } else if (canSpawnLegendary && rng < GAME_CONFIG.LEGENDARY_CHAIN.SPAWN_CHANCE + GAME_CONFIG.LEGENDARY_CHAIN.RARE_SPAWN_CHANCE) {
+            rarity = 'rare';
+          }
+
           if (type === 'creature') {
-            name = this.randomPick(theme.targetPool.creatureNames);
+            if (rarity === 'common') {
+              name = this.randomPick(theme.targetPool.creatureNames);
+            }
             points = this.customConfig
               ? cfg.SCORE.CREATURE_POINTS
               : Math.round((GAME_CONFIG.SCORE.CREATURE_POINTS + this.multipliers.creaturePointsBonus) * this.multipliers.scoreMul * theme.scoreCoefficients.creature * theme.scoreCoefficients.global);
+            if (rarity === 'legendary') {
+              points = Math.round(points * GAME_CONFIG.LEGENDARY_CHAIN.POINTS_MULTIPLIER);
+            } else if (rarity === 'rare') {
+              points = Math.round(points * GAME_CONFIG.LEGENDARY_CHAIN.RARE_POINTS_MULTIPLIER);
+            }
           } else if (type === 'wreck') {
-            name = this.randomPick(theme.targetPool.wreckNames);
+            if (rarity === 'common') {
+              name = this.randomPick(theme.targetPool.wreckNames);
+            }
             points = this.customConfig
               ? cfg.SCORE.WRECK_POINTS
               : Math.round((GAME_CONFIG.SCORE.WRECK_POINTS + this.multipliers.wreckPointsBonus) * this.multipliers.scoreMul * theme.scoreCoefficients.wreck * theme.scoreCoefficients.global);
+            if (rarity === 'legendary') {
+              points = Math.round(points * GAME_CONFIG.LEGENDARY_CHAIN.POINTS_MULTIPLIER);
+            } else if (rarity === 'rare') {
+              points = Math.round(points * GAME_CONFIG.LEGENDARY_CHAIN.RARE_POINTS_MULTIPLIER);
+            }
           } else {
             name = this.randomPick(theme.targetPool.dangerNames);
             points = Math.round(cfg.SCORE.DANGER_PENALTY * theme.scoreCoefficients.danger);
           }
-          targets.push({
+
+          const target: Target = {
             id: nextId++,
             type,
             position: pos,
-            radius,
+            radius: rarity === 'legendary' ? radius * 1.3 : radius,
             name,
             points,
             discovered: false,
@@ -210,7 +238,9 @@ export class TargetGenerator {
             shape: this.randomShape(type),
             rotation: this.randomRotation(),
             dangerPhase: type === 'danger' ? 'undetected' : undefined,
-          });
+            rarity,
+          };
+          targets.push(target);
           return;
         }
         attempts++;

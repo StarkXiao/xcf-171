@@ -4,10 +4,17 @@ import { GAME_CONFIG } from '../config/gameConfig';
 let waveIdCounter = 1;
 let echoIdCounter = 1;
 
+export interface LegendaryEchoData {
+  isLegendary: boolean;
+  color?: number;
+}
+
 export class SonarSystem {
   private waves: SonarWave[] = [];
   private echoPoints: EchoPoint[] = [];
+  private legendaryEchoes: LegendaryEchoData[] = [];
   private onEchoGenerated?: (echos: EchoPoint[]) => void;
+  private onLegendaryEchoGenerated?: (target: Target, echos: EchoPoint[]) => void;
   private maxRadius: number = GAME_CONFIG.SONAR.MAX_RADIUS;
   private speed: number = GAME_CONFIG.SONAR.SPEED;
   private precisionBonus: number = 0;
@@ -39,6 +46,10 @@ export class SonarSystem {
 
   setEchoCallback(callback: (echos: EchoPoint[]) => void) {
     this.onEchoGenerated = callback;
+  }
+
+  setLegendaryEchoCallback(callback: (target: Target, echos: EchoPoint[]) => void) {
+    this.onLegendaryEchoGenerated = callback;
   }
 
   emitSonar(position: Position): boolean {
@@ -162,15 +173,37 @@ export class SonarSystem {
             discoveredIds.push(target.id);
             discoveredPositions.push({ ...target.position });
 
-            const baseEchoCount = target.type === 'wreck' ? 3 : 1;
+            const isLegendary = target.rarity === 'legendary';
+            const isRare = target.rarity === 'rare';
+
+            let baseEchoCount: number;
+            let baseLife: number;
+            let sizeMultiplier: number;
+
+            if (isLegendary) {
+              baseEchoCount = GAME_CONFIG.LEGENDARY_CHAIN.SPECIAL_ECHO_COUNT;
+              baseLife = 2.5 * this.echoLifeMul * GAME_CONFIG.LEGENDARY_CHAIN.SPECIAL_ECHO_LIFE_MUL;
+              sizeMultiplier = GAME_CONFIG.LEGENDARY_CHAIN.SPECIAL_ECHO_SIZE_MUL;
+            } else if (isRare) {
+              baseEchoCount = target.type === 'wreck' ? 4 : 2;
+              baseLife = 2.5 * this.echoLifeMul * 1.2;
+              sizeMultiplier = 1.3;
+            } else {
+              baseEchoCount = target.type === 'wreck' ? 3 : 1;
+              baseLife = 2.5 * this.echoLifeMul;
+              sizeMultiplier = 1;
+            }
+
             const rawEchoCount = baseEchoCount * this.echoCountMul;
             const echoCount = Math.max(1, Math.floor(rawEchoCount));
             const extraEchoChance = rawEchoCount - echoCount;
             const totalEchoes = echoCount + (Math.random() < extraEchoChance ? 1 : 0);
-            const baseLife = 2.5 * this.echoLifeMul;
+
+            const legendaryEchos: EchoPoint[] = [];
 
             for (let i = 0; i < totalEchoes; i++) {
-              const angleOffset = (i - (totalEchoes - 1) / 2) * 0.3;
+              const angleSpread = isLegendary ? 0.5 : 0.3;
+              const angleOffset = (i - (totalEchoes - 1) / 2) * angleSpread;
               const angle = Math.atan2(dy, dx) + angleOffset;
               const r = target.radius * (0.7 + Math.random() * 0.6);
               const echoPos = {
@@ -185,10 +218,17 @@ export class SonarSystem {
                 alpha: 1,
                 life: baseLife,
                 maxLife: baseLife,
-                size: target.radius * (0.4 + Math.random() * 0.4) * this.echoSizeMul,
+                size: target.radius * (0.4 + Math.random() * 0.4) * this.echoSizeMul * sizeMultiplier,
               };
               this.echoPoints.push(echo);
               newEchos.push(echo);
+              if (isLegendary) {
+                legendaryEchos.push(echo);
+              }
+            }
+
+            if (isLegendary && legendaryEchos.length > 0) {
+              this.onLegendaryEchoGenerated?.(target, legendaryEchos);
             }
           }
         }

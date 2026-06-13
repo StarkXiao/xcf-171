@@ -171,6 +171,49 @@
       </div>
     </div>
 
+    <div class="legendary-chain-panel" v-if="legendaryChainState && (legendaryChainState.currentChainLength > 0 || legendaryChainState.trackedTargetId !== null)">
+      <div class="legendary-chain-header">
+        <span class="legendary-chain-icon">⚜</span>
+        <span class="legendary-chain-title">传说链路</span>
+        <span class="legendary-chain-count">{{ legendaryChainState.currentChainLength }}/{{ legendaryChainProgress.required }}</span>
+      </div>
+      <div class="legendary-chain-progress">
+        <div class="legendary-chain-progress-bar">
+          <div
+            class="legendary-chain-progress-fill"
+            :style="{ width: legendaryChainProgressPercent + '%' }"
+          ></div>
+        </div>
+        <span class="legendary-chain-milestone">{{ legendaryChainProgress.milestoneName }}</span>
+      </div>
+      <div class="legendary-timer" v-if="legendaryChainState.trackedTargetId !== null && legendaryChainState.trackedTimerRemaining > 0">
+        <div class="legendary-timer-label">限时追踪</div>
+        <div class="legendary-timer-bar">
+          <div
+            class="legendary-timer-fill"
+            :class="{ warning: legendaryChainState.trackedTimerRemaining <= 5, critical: legendaryChainState.trackedTimerRemaining <= 3 }"
+            :style="{ width: legendaryTimerPercent + '%' }"
+          ></div>
+        </div>
+        <span class="legendary-timer-value" :class="{ warning: legendaryChainState.trackedTimerRemaining <= 5 }">{{ Math.ceil(legendaryChainState.trackedTimerRemaining) }}s</span>
+      </div>
+    </div>
+
+    <div class="legendary-notifications" v-if="legendaryNotifications.length > 0">
+      <div
+        v-for="ln in legendaryNotifications"
+        :key="ln.id"
+        class="legendary-notif-item"
+        :class="ln.type"
+      >
+        <span class="legendary-notif-icon">{{ ln.icon }}</span>
+        <div class="legendary-notif-info">
+          <div class="legendary-notif-title">{{ ln.title }}</div>
+          <div class="legendary-notif-desc">{{ ln.description }}</div>
+        </div>
+      </div>
+    </div>
+
     <div class="hud-bottom">
       <div class="sonar-bar">
         <div class="sonar-label">声呐能量</div>
@@ -207,7 +250,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { GameState, OceanEvent, Mission, DepthZoneId } from '../types/game';
+import type { GameState, OceanEvent, Mission, DepthZoneId, LegendaryChainState, LegendaryChainEvent } from '../types/game';
 import { getEventColor } from '../config/oceanEvents';
 import { DEPTH_ZONES } from '../game/ScoreSystem';
 
@@ -218,6 +261,7 @@ const props = defineProps<{
   dailyChallengeTitle?: string;
   activeEvents?: OceanEvent[];
   missions?: Mission[];
+  legendaryChainState?: LegendaryChainState;
 }>();
 
 interface EventNotification {
@@ -237,11 +281,21 @@ interface MissionNotification {
   bonus: number;
 }
 
+interface LegendaryNotification {
+  id: number;
+  type: 'discovered' | 'collected' | 'chain_completed' | 'chain_broken' | 'tracking' | 'expired';
+  icon: string;
+  title: string;
+  description: string;
+}
+
 const activeNotifications = ref<EventNotification[]>([]);
 const missionNotifications = ref<MissionNotification[]>([]);
+const legendaryNotifications = ref<LegendaryNotification[]>([]);
 const missionExpanded = ref(true);
 let notificationId = 0;
 let missionNotifId = 0;
+let legendaryNotifId = 0;
 
 const addNotification = (event: OceanEvent, isSpawn: boolean) => {
   const notification: EventNotification = {
@@ -272,6 +326,80 @@ const addMissionNotification = (mission: Mission) => {
   setTimeout(() => {
     missionNotifications.value = missionNotifications.value.filter(n => n.id !== mn.id);
   }, 4000);
+};
+
+const addLegendaryNotification = (event: LegendaryChainEvent) => {
+  let icon = '⚜';
+  let title = '';
+  let description = '';
+  let type: LegendaryNotification['type'] = 'discovered';
+
+  switch (event.type) {
+    case 'legendary_discovered':
+      icon = '✦';
+      title = '传说目标发现！';
+      description = event.targetName ?? '未知传说目标';
+      type = 'discovered';
+      break;
+    case 'legendary_collected':
+      icon = '⭐';
+      title = '传说目标收集！';
+      description = `${event.targetName ?? ''} — 链路 ${event.chainLength}`;
+      type = 'collected';
+      break;
+    case 'chain_completed':
+      icon = '🏆';
+      title = event.reward?.achievementName ?? '链路完成！';
+      description = event.reward?.achievementDescription ?? '';
+      type = 'chain_completed';
+      break;
+    case 'chain_broken':
+      icon = '💔';
+      title = '传说链路中断';
+      description = event.reason ?? '';
+      type = 'chain_broken';
+      break;
+    case 'tracking_started':
+      icon = '⏱';
+      title = '限时追踪开始';
+      description = event.targetName ?? '';
+      type = 'tracking';
+      break;
+    case 'legendary_expired':
+      icon = '⏰';
+      title = '传说目标消失';
+      description = '限时追踪超时';
+      type = 'expired';
+      break;
+    case 'tracking_warning':
+      icon = '⚠';
+      title = '追踪即将超时！';
+      description = `剩余 ${Math.ceil(event.timerRemaining ?? 0)} 秒`;
+      type = 'tracking';
+      break;
+    case 'chain_started':
+      icon = '⚜';
+      title = '传说链路开启';
+      description = '连续收集传说目标触发链路奖励';
+      type = 'discovered';
+      break;
+    case 'chain_progress':
+      return;
+  }
+
+  const ln: LegendaryNotification = {
+    id: legendaryNotifId++,
+    type,
+    icon,
+    title,
+    description,
+  };
+  legendaryNotifications.value.push(ln);
+
+  const duration = type === 'chain_completed' ? 6000 : 3500;
+  setTimeout(() => {
+    legendaryNotifications.value = legendaryNotifications.value.filter(n => n.id !== ln.id);
+  }, duration);
 };
 
 const previousEventIds = ref<Set<number>>(new Set());
@@ -364,9 +492,44 @@ const formatNumber = (n: number) => {
   return n.toLocaleString();
 };
 
+const legendaryChainProgress = computed(() => {
+  const state = props.legendaryChainState;
+  if (!state) return { current: 0, required: 2, milestoneName: '' };
+
+  const chainLengths = [
+    { chainLength: 2, achievementName: '传说初现' },
+    { chainLength: 3, achievementName: '深渊回响' },
+    { chainLength: 5, achievementName: '传说猎手' },
+    { chainLength: 8, achievementName: '神话追寻者' },
+  ];
+
+  let next = chainLengths[chainLengths.length - 1];
+  for (const cl of chainLengths) {
+    if (state.currentChainLength < cl.chainLength) {
+      next = cl;
+      break;
+    }
+  }
+
+  return { current: state.currentChainLength, required: next.chainLength, milestoneName: next.achievementName };
+});
+
+const legendaryChainProgressPercent = computed(() => {
+  const p = legendaryChainProgress.value;
+  if (p.required === 0) return 0;
+  return Math.min(100, (p.current / p.required) * 100);
+});
+
+const legendaryTimerPercent = computed(() => {
+  const state = props.legendaryChainState;
+  if (!state || state.trackedTimerMax <= 0) return 0;
+  return Math.max(0, (state.trackedTimerRemaining / state.trackedTimerMax) * 100);
+});
+
 defineExpose({
   addNotification,
   addMissionNotification,
+  addLegendaryNotification,
 });
 </script>
 
@@ -1174,6 +1337,238 @@ defineExpose({
   }
   50% {
     transform: scale(1.08);
+  }
+}
+
+.legendary-chain-panel {
+  position: absolute;
+  top: 80px;
+  left: 12px;
+  width: 200px;
+  background: linear-gradient(135deg, rgba(80, 40, 0, 0.9), rgba(50, 20, 0, 0.95));
+  border: 1px solid rgba(255, 170, 0, 0.6);
+  border-radius: 10px;
+  padding: 8px 10px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 0 20px rgba(255, 170, 0, 0.3);
+  animation: legendary-glow 2s ease-in-out infinite;
+  top: auto;
+  bottom: 160px;
+  left: 12px;
+}
+
+@keyframes legendary-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(255, 170, 0, 0.2); }
+  50% { box-shadow: 0 0 30px rgba(255, 170, 0, 0.5); }
+}
+
+.legendary-chain-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.legendary-chain-icon {
+  font-size: 14px;
+  color: #ffaa00;
+  text-shadow: 0 0 8px rgba(255, 170, 0, 0.6);
+}
+
+.legendary-chain-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: bold;
+  color: rgba(255, 200, 100, 0.9);
+  letter-spacing: 1px;
+}
+
+.legendary-chain-count {
+  font-size: 10px;
+  color: #ffcc44;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+.legendary-chain-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendary-chain-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(100, 50, 0, 0.5);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.legendary-chain-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff8800, #ffcc00);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 8px rgba(255, 170, 0, 0.6);
+}
+
+.legendary-chain-milestone {
+  font-size: 9px;
+  color: rgba(255, 200, 100, 0.7);
+  white-space: nowrap;
+}
+
+.legendary-timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 170, 0, 0.2);
+}
+
+.legendary-timer-label {
+  font-size: 9px;
+  color: rgba(255, 200, 100, 0.7);
+  white-space: nowrap;
+}
+
+.legendary-timer-bar {
+  flex: 1;
+  height: 5px;
+  background: rgba(100, 50, 0, 0.5);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.legendary-timer-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00ffaa, #00ccff);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 6px rgba(0, 255, 170, 0.4);
+}
+
+.legendary-timer-fill.warning {
+  background: linear-gradient(90deg, #ffcc00, #ff8800);
+  box-shadow: 0 0 8px rgba(255, 136, 0, 0.5);
+}
+
+.legendary-timer-fill.critical {
+  background: linear-gradient(90deg, #ff3333, #ff0000);
+  box-shadow: 0 0 10px rgba(255, 50, 50, 0.6);
+  animation: timer-flash 0.5s ease-in-out infinite;
+}
+
+@keyframes timer-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.legendary-timer-value {
+  font-size: 10px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  color: #00ffaa;
+  min-width: 22px;
+  text-align: right;
+}
+
+.legendary-timer-value.warning {
+  color: #ff8800;
+}
+
+.legendary-notifications {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.legendary-notif-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  animation: legendary-notif-pop 0.5s ease-out;
+  min-width: 240px;
+}
+
+.legendary-notif-item.discovered {
+  background: linear-gradient(135deg, rgba(255, 170, 0, 0.9), rgba(200, 120, 0, 0.95));
+  border: 1px solid rgba(255, 220, 0, 0.7);
+  box-shadow: 0 0 25px rgba(255, 170, 0, 0.5);
+}
+
+.legendary-notif-item.collected {
+  background: linear-gradient(135deg, rgba(255, 200, 0, 0.92), rgba(220, 150, 0, 0.95));
+  border: 1px solid rgba(255, 255, 100, 0.8);
+  box-shadow: 0 0 30px rgba(255, 200, 0, 0.6);
+}
+
+.legendary-notif-item.chain_completed {
+  background: linear-gradient(135deg, rgba(200, 100, 0, 0.95), rgba(160, 60, 0, 0.97));
+  border: 2px solid rgba(255, 200, 50, 0.9);
+  box-shadow: 0 0 40px rgba(255, 170, 0, 0.7), inset 0 0 20px rgba(255, 200, 0, 0.2);
+}
+
+.legendary-notif-item.chain_broken {
+  background: linear-gradient(135deg, rgba(100, 30, 30, 0.9), rgba(60, 15, 15, 0.95));
+  border: 1px solid rgba(255, 80, 80, 0.6);
+  box-shadow: 0 0 20px rgba(255, 50, 50, 0.3);
+}
+
+.legendary-notif-item.tracking {
+  background: linear-gradient(135deg, rgba(0, 80, 120, 0.9), rgba(0, 50, 80, 0.95));
+  border: 1px solid rgba(0, 200, 255, 0.6);
+  box-shadow: 0 0 20px rgba(0, 200, 255, 0.3);
+}
+
+.legendary-notif-item.expired {
+  background: linear-gradient(135deg, rgba(80, 40, 0, 0.9), rgba(50, 20, 0, 0.95));
+  border: 1px solid rgba(200, 100, 0, 0.5);
+  box-shadow: 0 0 15px rgba(200, 100, 0, 0.3);
+}
+
+.legendary-notif-icon {
+  font-size: 24px;
+}
+
+.legendary-notif-info {
+  flex: 1;
+}
+
+.legendary-notif-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 2px;
+  text-shadow: 0 0 8px rgba(255, 170, 0, 0.4);
+}
+
+.legendary-notif-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+@keyframes legendary-notif-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 </style>

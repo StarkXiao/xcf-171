@@ -98,6 +98,29 @@ export const GAME_CONFIG = {
       LEGENDARY: 0xff00ff,
     },
   },
+  LEGENDARY_CHAIN: {
+    SPAWN_CHANCE: 0.12,
+    RARE_SPAWN_CHANCE: 0.25,
+    MIN_LEVEL_FOR_SPAWN: 2,
+    TIMER_DURATION: 15,
+    TIMER_WARNING_THRESHOLD: 5,
+    POINTS_MULTIPLIER: 3.0,
+    RARE_POINTS_MULTIPLIER: 1.8,
+    CHAIN_LENGTHS: [
+      { chainLength: 2, bonusPoints: 300, bonusLives: 0, bonusSonarCharges: 1, achievementName: '传说初现', achievementDescription: '连续收集2个传说目标' },
+      { chainLength: 3, bonusPoints: 800, bonusLives: 1, bonusSonarCharges: 2, achievementName: '深渊回响', achievementDescription: '连续收集3个传说目标' },
+      { chainLength: 5, bonusPoints: 2000, bonusLives: 2, bonusSonarCharges: 3, achievementName: '传说猎手', achievementDescription: '连续收集5个传说目标' },
+      { chainLength: 8, bonusPoints: 5000, bonusLives: 3, bonusSonarCharges: 5, achievementName: '神话追寻者', achievementDescription: '连续收集8个传说目标' },
+    ],
+    SPECIAL_ECHO_COLOR: 0xffaa00,
+    SPECIAL_ECHO_SIZE_MUL: 1.8,
+    SPECIAL_ECHO_LIFE_MUL: 1.5,
+    SPECIAL_ECHO_COUNT: 5,
+    LEGENDARY_NAMES: {
+      creature: ['远古利维坦', '幽灵鲸', '水晶龙鱼', '深渊凤凰', '永恒海星', '星辉水母王'],
+      wreck: ['亚特兰蒂斯碎片', '远古神殿遗迹', '龙骨宝船', '深渊王冠', '时间封印之箱', '失落的神器'],
+    },
+  },
 };
 
 export const CREATURE_NAMES = [
