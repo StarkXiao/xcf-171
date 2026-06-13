@@ -74,6 +74,10 @@
       :expedition-reward="lastExpeditionReward"
       :total-expedition-points="totalExpeditionPoints"
       :ocean-theme-id="currentOceanTheme"
+      :max-depth-reached="gameState.maxDepthReached"
+      :pressure-integrity="gameState.pressureIntegrity"
+      :max-pressure-integrity="gameState.maxPressureIntegrity"
+      :depth-zone="gameState.depthZone"
       @restart="handleRestart"
       @home="handleHome"
       @open-collection="openCollection"
@@ -294,6 +298,12 @@ const gameState = reactive<GameState>({
   comboMultiplier: 1.0,
   sonarCombo: 0,
   maxSonarCombo: 0,
+  depth: 0,
+  pressureIntegrity: 100,
+  maxPressureIntegrity: 100,
+  depthZone: 'shallow',
+  maxDepthReached: 0,
+  pressureWarning: false,
 });
 
 let gameController: GameController | null = null;
@@ -398,6 +408,18 @@ const handleComboEvent = (event: ComboEvent) => {
       voyageArchiveSystem.updateComboStats(event.bonusPoints || 0, event.bonusCharges || 0);
     }
   }
+};
+
+const handlePressureWarning = (integrity: number) => {
+  if (!floatingScoreRef.value || !containerRef.value) return;
+  const rect = containerRef.value.getBoundingClientRect();
+  floatingScoreRef.value.addScore(
+    0,
+    `⚠️ 耐压警告 ${Math.round(integrity)}%`,
+    'damage',
+    rect.width / 2,
+    rect.height * 0.3
+  );
 };
 
 const handleUnlockEvent = (_event: UnlockEvent) => {
@@ -667,6 +689,12 @@ const handleHome = () => {
     comboMultiplier: 1.0,
     sonarCombo: 0,
     maxSonarCombo: 0,
+    depth: 0,
+    pressureIntegrity: 100,
+    maxPressureIntegrity: 100,
+    depthZone: 'shallow' as const,
+    maxDepthReached: 0,
+    pressureWarning: false,
   });
   Object.assign(relayGameState, {
     isPlaying: false,
@@ -837,7 +865,8 @@ onMounted(() => {
       handleMissionCompleted,
       handleMissionProgress,
       handleMissionEffectsChanged,
-      handleComboEvent
+      handleComboEvent,
+      handlePressureWarning
     );
   }
 

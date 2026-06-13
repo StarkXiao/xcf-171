@@ -25,6 +25,9 @@ export class MapRenderer {
   private particles: Array<{ sprite: PIXI.Graphics; vy: number; vx: number }> = [];
   private oceanThemeId: OceanThemeId = DEFAULT_OCEAN_THEME_ID;
   private htmlContainer: HTMLElement;
+  private depthOverlay: PIXI.Graphics | null = null;
+  private pressureFlashOverlay: PIXI.Graphics | null = null;
+  private lastPressureWarning: boolean = false;
 
   constructor(htmlContainer: HTMLElement, width: number, height: number) {
     this.htmlContainer = htmlContainer;
@@ -74,8 +77,49 @@ export class MapRenderer {
     this.drawGrid();
     this.createFog();
     this.createParticles();
+    this.createDepthOverlay();
 
     window.addEventListener('resize', this.handleResize.bind(this));
+  }
+
+  private createDepthOverlay() {
+    this.depthOverlay = new PIXI.Graphics();
+    this.depthOverlay.beginFill(0x000020, 0);
+    this.depthOverlay.drawRect(0, 0, this.width, this.height);
+    this.depthOverlay.endFill();
+    this.mapContainer.addChild(this.depthOverlay);
+
+    this.pressureFlashOverlay = new PIXI.Graphics();
+    this.pressureFlashOverlay.beginFill(0xff0000, 0);
+    this.pressureFlashOverlay.drawRect(0, 0, this.width, this.height);
+    this.pressureFlashOverlay.endFill();
+    this.pressureFlashOverlay.alpha = 0;
+    this.mapContainer.addChild(this.pressureFlashOverlay);
+  }
+
+  public updateDepthEffects(depth: number, pressureIntegrity: number, maxPressureIntegrity: number) {
+    if (!this.depthOverlay || !this.pressureFlashOverlay) return;
+
+    const depthRatio = Math.min(1, depth / this.height);
+    const tintAlpha = depthRatio * 0.4;
+
+    this.depthOverlay.clear();
+    this.depthOverlay.beginFill(0x000020, tintAlpha);
+    this.depthOverlay.drawRect(0, 0, this.width, this.height);
+    this.depthOverlay.endFill();
+
+    const integrityRatio = pressureIntegrity / maxPressureIntegrity;
+    if (integrityRatio <= GAME_CONFIG.DEPTH.PRESSURE_WARNING_THRESHOLD / maxPressureIntegrity) {
+      const flashIntensity = (1 - integrityRatio) * 0.25;
+      const pulse = Math.sin(Date.now() / 200) * 0.5 + 0.5;
+      this.pressureFlashOverlay.clear();
+      this.pressureFlashOverlay.beginFill(0xff0000, flashIntensity * pulse);
+      this.pressureFlashOverlay.drawRect(0, 0, this.width, this.height);
+      this.pressureFlashOverlay.endFill();
+      this.pressureFlashOverlay.alpha = 1;
+    } else {
+      this.pressureFlashOverlay.alpha = 0;
+    }
   }
 
   private handleResize() {

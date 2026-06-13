@@ -1,6 +1,26 @@
-import type { GameState, Target, ComboEvent, ComboStats, OceanThemeId } from '../types/game';
+import type { GameState, Target, ComboEvent, ComboStats, OceanThemeId, DepthZoneId, DepthZoneInfo } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { getOceanTheme, DEFAULT_OCEAN_THEME_ID } from '../config/oceanThemes';
+
+export const DEPTH_ZONES: DepthZoneInfo[] = GAME_CONFIG.DEPTH.ZONES.map((z, i) => ({
+  id: (['shallow', 'mid', 'deep', 'abyss'] as DepthZoneId[])[i],
+  name: z.name,
+  maxDepth: z.maxDepth,
+  pressureDrain: z.pressureDrain,
+  wreckValueBonus: z.wreckValueBonus,
+  highValueWreckChance: z.highValueWreckChance,
+}));
+
+export function getDepthZone(depth: number): DepthZoneInfo {
+  for (const zone of DEPTH_ZONES) {
+    if (depth <= zone.maxDepth) return zone;
+  }
+  return DEPTH_ZONES[DEPTH_ZONES.length - 1];
+}
+
+export function getDepthZoneId(depth: number): DepthZoneId {
+  return getDepthZone(depth).id;
+}
 
 export interface ScoreEvent {
   points: number;
@@ -58,6 +78,10 @@ export class ScoreSystem {
     comboSonarCharges: 0,
   };
 
+  private pressureDrainMul: number = 1;
+  private lastPressureDamageTime: number = 0;
+  private pressureDamageAccumulator: number = 0;
+
   constructor(params: ScoreSystemParams = {}) {
     this.params = {
       initialLivesBonus: params.initialLivesBonus ?? 0,
@@ -97,10 +121,12 @@ export class ScoreSystem {
   private applyOceanThemeEffects(theme: ReturnType<typeof getOceanTheme>) {
     const dangerDamageRule = theme.riskRules.find(r => r.type === 'danger_damage');
     const livesRule = theme.riskRules.find(r => r.type === 'lives_initial');
+    const pressureDrainRule = theme.riskRules.find(r => r.type === 'pressure_drain');
     
     this.params.dangerLifePenaltyMul = this.baseParams.dangerLifePenaltyMul * (dangerDamageRule?.value ?? 1);
     this.params.dangerScorePenaltyMul = this.baseParams.dangerScorePenaltyMul * (dangerDamageRule?.value ?? 1);
     this.params.initialLivesBonus = this.baseParams.initialLivesBonus + (livesRule?.value ?? 0);
+    this.pressureDrainMul = pressureDrainRule?.value ?? 1;
   }
 
   getOceanThemeId(): OceanThemeId {
@@ -147,6 +173,12 @@ export class ScoreSystem {
       comboMultiplier: 1.0,
       sonarCombo: 0,
       maxSonarCombo: 0,
+      depth: 0,
+      pressureIntegrity: GAME_CONFIG.DEPTH.MAX_PRESSURE_INTEGRITY,
+      maxPressureIntegrity: GAME_CONFIG.DEPTH.MAX_PRESSURE_INTEGRITY,
+      depthZone: 'shallow' as DepthZoneId,
+      maxDepthReached: 0,
+      pressureWarning: false,
     };
   }
 
@@ -176,6 +208,7 @@ export class ScoreSystem {
       comboSonarCharges: 0,
     };
     this.clearComboTimers();
+    this.pressureDamageAccumulator = 0;
     this.notifyStateChange();
   }
 
@@ -541,6 +574,68 @@ export class ScoreSystem {
       return true;
     }
     return false;
+  }
+
+  updateDepth(depth: number, delta: number): boolean {
+    this.state.depth = Math.max(0, depth);
+    if (this.state.depth > this.state.maxDepthReached) {
+      this.state.maxDepthReached = this.state.depth;
+    }
+    const zone = getDepthZone(this.state.depth);
+    this.state.depthZone = zone.id;
+
+    const wasWarning = this.state.pressureWarning;
+
+    if (zone.pressureDrain > 0 && this.state.isPlaying && !this.state.isGameOver) {
+      const drain = zone.pressureDrain * this.pressureDrainMul * delta;
+      this.state.pressureIntegrity = Math.max(0, this.state.pressureIntegrity - drain);
+    } else {
+      const regen = GAME_CONFIG.DEPTH.PRESSURE_REGEN_RATE * delta;
+      this.state.pressureIntegrity = Math.min(
+        this.state.maxPressureIntegrity,
+        this.state.pressureIntegrity + regen
+      );
+    }
+
+    this.state.pressureWarning = this.state.pressureIntegrity <= GAME_CONFIG.DEPTH.PRESSURE_WARNING_THRESHOLD;
+
+    this.pressureDamageAccumulator += delta;
+    if (this.pressureDamageAccumulator >= GAME_CONFIG.DEPTH.PRESSURE_DAMAGE_INTERVAL) {
+      this.pressureDamageAccumulator -= GAME_CONFIG.DEPTH.PRESSURE_DAMAGE_INTERVAL;
+      if (this.state.pressureIntegrity <= GAME_CONFIG.DEPTH.PRESSURE_CRITICAL_THRESHOLD && this.state.pressureIntegrity > 0) {
+        const damage = GAME_CONFIG.DEPTH.PRESSURE_DAMAGE_PER_INTERVAL;
+        this.state.lives -= damage;
+        this.onScoreEvent?.({
+          points: 0,
+          targetName: `耐压受损 -${damage}❤`,
+          type: 'damage',
+          position: { x: 0, y: 0 },
+        });
+        if (this.state.lives <= 0) {
+          this.state.isGameOver = true;
+          this.state.isPlaying = false;
+          this.clearComboTimers();
+        }
+      } else if (this.state.pressureIntegrity <= 0) {
+        this.state.lives = 0;
+        this.state.isGameOver = true;
+        this.state.isPlaying = false;
+        this.clearComboTimers();
+      }
+    }
+
+    this.notifyStateChange();
+    return !wasWarning && this.state.pressureWarning;
+  }
+
+  getDepthWreckBonus(depth: number): number {
+    return getDepthZone(depth).wreckValueBonus;
+  }
+
+  getDepthScoreMultiplier(depth: number): number {
+    const zoneIndex = DEPTH_ZONES.findIndex(z => depth <= z.maxDepth);
+    const zoneLevel = zoneIndex >= 0 ? zoneIndex : DEPTH_ZONES.length - 1;
+    return 1 + zoneLevel * GAME_CONFIG.DEPTH.DEPTH_SCORE_BONUS_PER_ZONE;
   }
 
   getFinalScore(): number {

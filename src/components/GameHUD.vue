@@ -27,6 +27,25 @@
       </div>
     </div>
 
+    <div class="depth-panel" :class="{ warning: state.pressureWarning, critical: state.pressureIntegrity <= 15 }">
+      <div class="depth-header">
+        <span class="depth-icon">⬇</span>
+        <span class="depth-zone-name">{{ depthZoneName }}</span>
+        <span class="depth-value">{{ Math.round(state.depth) }}m</span>
+      </div>
+      <div class="pressure-bar">
+        <div class="pressure-label">耐压</div>
+        <div class="pressure-track">
+          <div
+            class="pressure-fill"
+            :class="pressureBarClass"
+            :style="{ width: pressurePercent + '%' }"
+          ></div>
+        </div>
+        <span class="pressure-value" :class="pressureBarClass">{{ Math.round(state.pressureIntegrity) }}%</span>
+      </div>
+    </div>
+
     <div class="mission-panel" v-if="missions && missions.length > 0">
       <div class="mission-panel-header" @click="missionExpanded = !missionExpanded">
         <span class="mission-panel-icon">📋</span>
@@ -188,8 +207,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { GameState, OceanEvent, Mission } from '../types/game';
+import type { GameState, OceanEvent, Mission, DepthZoneId } from '../types/game';
 import { getEventColor } from '../config/oceanEvents';
+import { DEPTH_ZONES } from '../game/ScoreSystem';
 
 const props = defineProps<{
   state: GameState;
@@ -322,6 +342,24 @@ const minLivesForDisplay = computed(() => {
   return Math.max(3, props.state.lives + (3 - props.state.lives > 0 ? 0 : 0));
 });
 
+const depthZoneName = computed(() => {
+  const zone = DEPTH_ZONES.find(z => z.id === props.state.depthZone);
+  return zone?.name ?? '浅层';
+});
+
+const pressurePercent = computed(() => {
+  if (props.state.maxPressureIntegrity <= 0) return 0;
+  return (props.state.pressureIntegrity / props.state.maxPressureIntegrity) * 100;
+});
+
+const pressureBarClass = computed(() => {
+  const ratio = props.state.pressureIntegrity / props.state.maxPressureIntegrity;
+  if (ratio <= 0.15) return 'critical';
+  if (ratio <= 0.3) return 'warning';
+  if (ratio <= 0.6) return 'caution';
+  return 'safe';
+});
+
 const formatNumber = (n: number) => {
   return n.toLocaleString();
 };
@@ -444,6 +482,130 @@ defineExpose({
   flex-direction: column;
   gap: 10px;
 }
+
+.depth-panel {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(0, 40, 60, 0.85), rgba(0, 20, 40, 0.9));
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  border-radius: 10px;
+  padding: 8px 14px;
+  backdrop-filter: blur(8px);
+  min-width: 180px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.depth-panel.warning {
+  border-color: rgba(255, 170, 0, 0.6);
+  box-shadow: 0 0 20px rgba(255, 170, 0, 0.3);
+}
+
+.depth-panel.critical {
+  border-color: rgba(255, 50, 50, 0.7);
+  box-shadow: 0 0 25px rgba(255, 50, 50, 0.4);
+  animation: pressure-pulse 1s ease-in-out infinite;
+}
+
+@keyframes pressure-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(255, 50, 50, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(255, 50, 50, 0.6); }
+}
+
+.depth-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.depth-icon {
+  font-size: 14px;
+  color: rgba(0, 200, 255, 0.9);
+}
+
+.depth-zone-name {
+  font-size: 11px;
+  font-weight: bold;
+  color: rgba(0, 255, 200, 0.8);
+  letter-spacing: 1px;
+}
+
+.depth-value {
+  font-size: 13px;
+  font-weight: bold;
+  color: #00ccff;
+  font-family: 'Courier New', monospace;
+  margin-left: auto;
+}
+
+.pressure-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pressure-label {
+  font-size: 10px;
+  color: rgba(0, 255, 200, 0.6);
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+.pressure-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(0, 50, 70, 0.6);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pressure-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.pressure-fill.safe {
+  background: linear-gradient(90deg, #00ffaa, #00e5ff);
+  box-shadow: 0 0 6px rgba(0, 255, 170, 0.4);
+}
+
+.pressure-fill.caution {
+  background: linear-gradient(90deg, #ffcc00, #ffaa00);
+  box-shadow: 0 0 6px rgba(255, 204, 0, 0.4);
+}
+
+.pressure-fill.warning {
+  background: linear-gradient(90deg, #ff8800, #ff5500);
+  box-shadow: 0 0 8px rgba(255, 136, 0, 0.5);
+}
+
+.pressure-fill.critical {
+  background: linear-gradient(90deg, #ff3333, #ff0000);
+  box-shadow: 0 0 10px rgba(255, 50, 50, 0.6);
+  animation: pressure-bar-flash 0.5s ease-in-out infinite;
+}
+
+@keyframes pressure-bar-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.pressure-value {
+  font-size: 11px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+}
+
+.pressure-value.safe { color: #00ffaa; }
+.pressure-value.caution { color: #ffcc00; }
+.pressure-value.warning { color: #ff8800; }
+.pressure-value.critical { color: #ff3333; }
 
 .sonar-bar {
   background: linear-gradient(135deg, rgba(0, 40, 60, 0.85), rgba(0, 20, 40, 0.9));

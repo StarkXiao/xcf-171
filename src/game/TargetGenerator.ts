@@ -1,7 +1,8 @@
-import type { Target, TargetType, Position, OceanTheme } from '../types/game';
+import type { Target, TargetType, Position, OceanTheme, DepthZoneInfo } from '../types/game';
 import { GAME_CONFIG, CREATURE_NAMES, WRECK_NAMES, DANGER_NAMES } from '../config/gameConfig';
 import { SeededRandom } from './SeededRandom';
 import { getOceanTheme, DEFAULT_OCEAN_THEME_ID } from '../config/oceanThemes';
+import { getDepthZone, DEPTH_ZONES } from './ScoreSystem';
 import type { OceanThemeId } from '../types/game';
 
 let nextId = 1;
@@ -220,6 +221,73 @@ export class TargetGenerator {
     for (let i = 0; i < wreckCount; i++) addTarget('wreck');
     for (let i = 0; i < dangerCount; i++) addTarget('danger');
 
+    this.injectDepthBonusWrecks(targets, level);
+
     return targets;
+  }
+
+  private injectDepthBonusWrecks(targets: Target[], level: number): void {
+    const margin = GAME_CONFIG.TARGETS.SPAWN_MARGIN;
+    const minR = GAME_CONFIG.TARGETS.MIN_RADIUS;
+    const maxR = GAME_CONFIG.TARGETS.MAX_RADIUS;
+    const theme = getOceanTheme(this.oceanThemeId);
+
+    for (const zone of DEPTH_ZONES) {
+      if (zone.highValueWreckChance <= 0.1) continue;
+
+      const zoneMinY = zone.id === 'shallow' ? margin : DEPTH_ZONES[DEPTH_ZONES.indexOf(zone) - 1]?.maxDepth ?? margin;
+      const zoneMaxY = zone.maxDepth - margin;
+      if (zoneMaxY <= zoneMinY) continue;
+
+      const bonusCount = Math.floor(zone.highValueWreckChance * (1 + level * 0.3));
+      for (let i = 0; i < bonusCount; i++) {
+        if (this.rng ? this.rng.next() > zone.highValueWreckChance : Math.random() > zone.highValueWreckChance) continue;
+
+        let attempts = 0;
+        while (attempts < 50) {
+          const pos: Position = {
+            x: margin + (this.rng ? this.rng.nextFloat(0, 1) : Math.random()) * (this.width - 2 * margin),
+            y: zoneMinY + (this.rng ? this.rng.nextFloat(0, 1) : Math.random()) * (zoneMaxY - zoneMinY),
+          };
+          const radius = minR + (this.rng ? this.rng.nextFloat(minR, maxR) : Math.random()) * (maxR - minR);
+
+          let overlapping = false;
+          for (const t of targets) {
+            const dx = pos.x - t.position.x;
+            const dy = pos.y - t.position.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < radius + t.radius + GAME_CONFIG.TARGETS.SPAWN_MARGIN) {
+              overlapping = true;
+              break;
+            }
+          }
+
+          if (!overlapping) {
+            const name = this.randomPick(theme.targetPool.wreckNames);
+            const basePoints = Math.round(
+              (GAME_CONFIG.SCORE.WRECK_POINTS + this.multipliers.wreckPointsBonus) *
+              this.multipliers.scoreMul *
+              theme.scoreCoefficients.wreck *
+              theme.scoreCoefficients.global *
+              zone.wreckValueBonus
+            );
+            targets.push({
+              id: nextId++,
+              type: 'wreck',
+              position: pos,
+              radius,
+              name: `${zone.name}·${name}`,
+              points: basePoints,
+              discovered: false,
+              collected: false,
+              shape: 'irregular',
+              rotation: this.randomRotation(),
+            });
+            break;
+          }
+          attempts++;
+        }
+      }
+    }
   }
 }

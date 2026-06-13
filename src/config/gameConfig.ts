@@ -61,6 +61,21 @@ export const GAME_CONFIG = {
     WRECK_BONUS_MULTIPLIER: 1.5,
     CREATURE_BONUS_MULTIPLIER: 1.0,
   },
+  DEPTH: {
+    ZONES: [
+      { name: '浅层', maxDepth: 300, pressureDrain: 0, wreckValueBonus: 1.0, highValueWreckChance: 0.1 },
+      { name: '中层', maxDepth: 600, pressureDrain: 0.3, wreckValueBonus: 1.3, highValueWreckChance: 0.25 },
+      { name: '深层', maxDepth: 900, pressureDrain: 0.8, wreckValueBonus: 1.8, highValueWreckChance: 0.45 },
+      { name: '深渊', maxDepth: 1200, pressureDrain: 1.5, wreckValueBonus: 2.5, highValueWreckChance: 0.65 },
+    ],
+    MAX_PRESSURE_INTEGRITY: 100,
+    PRESSURE_WARNING_THRESHOLD: 30,
+    PRESSURE_CRITICAL_THRESHOLD: 15,
+    PRESSURE_DAMAGE_INTERVAL: 2.0,
+    PRESSURE_DAMAGE_PER_INTERVAL: 1,
+    PRESSURE_REGEN_RATE: 0.5,
+    DEPTH_SCORE_BONUS_PER_ZONE: 0.15,
+  },
   COLORS: {
     BACKGROUND: 0x000814,
     GRID: 0x003344,

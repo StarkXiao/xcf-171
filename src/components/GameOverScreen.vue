@@ -114,6 +114,27 @@
         </div>
       </div>
 
+      <div v-if="showDepthStats" class="depth-stats-section">
+        <div class="depth-stats-title">
+          <span class="depth-stats-icon">⬇</span>
+          <span>深潜统计</span>
+        </div>
+        <div class="depth-stats-row">
+          <div class="depth-stat-item">
+            <div class="depth-stat-value">{{ Math.round(maxDepthReached ?? 0) }}m</div>
+            <div class="depth-stat-label">最深到达</div>
+          </div>
+          <div class="depth-stat-item">
+            <div class="depth-stat-value zone">{{ deepestZoneReached.name }}</div>
+            <div class="depth-stat-label">最远深度区</div>
+          </div>
+          <div class="depth-stat-item">
+            <div class="depth-stat-value" :class="{ damaged: (pressureIntegrity ?? 100) < 50 }">{{ Math.round(pressureIntegrity ?? 100) }}%</div>
+            <div class="depth-stat-label">耐压余量</div>
+          </div>
+        </div>
+      </div>
+
       <div class="rank-display">
         <span class="rank-label">评价等级</span>
         <span class="rank-badge" :class="rankClass">{{ rank }}</span>
@@ -202,8 +223,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { UnlockEvent, ExpeditionReward, MissionResult, OceanThemeId, OceanTheme } from '../types/game';
+import type { UnlockEvent, ExpeditionReward, MissionResult, OceanThemeId, OceanTheme, DepthZoneId } from '../types/game';
 import { getOceanTheme } from '../config/oceanThemes';
+import { DEPTH_ZONES } from '../game/ScoreSystem';
 
 const props = defineProps<{
   score: number;
@@ -225,6 +247,10 @@ const props = defineProps<{
   comboBonusPoints?: number;
   comboSonarCharges?: number;
   oceanThemeId?: OceanThemeId;
+  maxDepthReached?: number;
+  pressureIntegrity?: number;
+  maxPressureIntegrity?: number;
+  depthZone?: DepthZoneId;
 }>();
 
 defineEmits<{
@@ -293,6 +319,31 @@ const rankClass = computed(() => ({
 }));
 
 const formatNumber = (n: number | undefined | null) => (n ?? 0).toLocaleString();
+
+const depthZoneName = computed(() => {
+  const zone = DEPTH_ZONES.find(z => z.id === props.depthZone);
+  return zone?.name ?? '浅层';
+});
+
+const deepestZoneReached = computed(() => {
+  const depth = props.maxDepthReached ?? 0;
+  for (let i = DEPTH_ZONES.length - 1; i >= 0; i--) {
+    if (depth > 0 && depth <= DEPTH_ZONES[i].maxDepth) {
+      continue;
+    }
+    if (depth > 0 && i < DEPTH_ZONES.length - 1) {
+      return DEPTH_ZONES[i + 1];
+    }
+    if (depth > DEPTH_ZONES[i].maxDepth) {
+      return DEPTH_ZONES[i];
+    }
+  }
+  return DEPTH_ZONES[0];
+});
+
+const showDepthStats = computed(() => {
+  return (props.maxDepthReached ?? 0) > 0;
+});
 </script>
 
 <style scoped>
@@ -1081,5 +1132,68 @@ const formatNumber = (n: number | undefined | null) => (n ?? 0).toLocaleString()
   color: #00ffcc;
   font-family: 'Courier New', monospace;
   text-shadow: 0 0 10px rgba(0, 255, 200, 0.4);
+}
+
+.depth-stats-section {
+  margin-bottom: 18px;
+  background: linear-gradient(135deg, rgba(0, 40, 80, 0.15), rgba(0, 20, 50, 0.2));
+  border: 1px solid rgba(0, 150, 255, 0.35);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.depth-stats-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(0, 200, 255, 0.9);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.depth-stats-icon {
+  font-size: 18px;
+}
+
+.depth-stats-row {
+  display: flex;
+  gap: 10px;
+}
+
+.depth-stat-item {
+  flex: 1;
+  text-align: center;
+  background: rgba(0, 30, 60, 0.5);
+  border-radius: 8px;
+  padding: 8px 6px;
+  border: 1px solid rgba(0, 150, 255, 0.2);
+}
+
+.depth-stat-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: #00ccff;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 8px rgba(0, 200, 255, 0.4);
+}
+
+.depth-stat-value.zone {
+  font-size: 16px;
+  color: #00e5ff;
+}
+
+.depth-stat-value.damaged {
+  color: #ff6644;
+  text-shadow: 0 0 8px rgba(255, 100, 50, 0.5);
+}
+
+.depth-stat-label {
+  font-size: 9px;
+  color: rgba(0, 200, 255, 0.5);
+  letter-spacing: 1px;
+  margin-top: 3px;
 }
 </style>

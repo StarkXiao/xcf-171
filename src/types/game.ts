@@ -68,6 +68,17 @@ export interface EchoPoint {
   isSuspected?: boolean;
 }
 
+export type DepthZoneId = 'shallow' | 'mid' | 'deep' | 'abyss';
+
+export interface DepthZoneInfo {
+  id: DepthZoneId;
+  name: string;
+  maxDepth: number;
+  pressureDrain: number;
+  wreckValueBonus: number;
+  highValueWreckChance: number;
+}
+
 export interface GameState {
   score: number;
   lives: number;
@@ -84,6 +95,12 @@ export interface GameState {
   comboMultiplier: number;
   sonarCombo: number;
   maxSonarCombo: number;
+  depth: number;
+  pressureIntegrity: number;
+  maxPressureIntegrity: number;
+  depthZone: DepthZoneId;
+  maxDepthReached: number;
+  pressureWarning: boolean;
 }
 
 export type ComboEventType =
@@ -512,7 +529,7 @@ export type VoyageMode = 'normal' | 'daily_challenge' | 'rescue' | 'custom';
 export interface TrajectoryPoint {
   timestamp: number;
   position: Position;
-  event?: 'sonar' | 'collect' | 'damage' | 'level_up' | 'pause' | 'rescue' | 'false_report' | 'path_offtrack';
+  event?: 'sonar' | 'collect' | 'damage' | 'level_up' | 'pause' | 'rescue' | 'false_report' | 'path_offtrack' | 'pressure_warning';
 }
 
 export interface ScoreBreakdownItem {
@@ -1147,7 +1164,7 @@ export interface OceanThemeScoreCoefficients {
 }
 
 export interface OceanThemeRiskRule {
-  type: 'danger_count' | 'danger_damage' | 'lives_initial' | 'sonar_recharge' | 'target_density';
+  type: 'danger_count' | 'danger_damage' | 'lives_initial' | 'sonar_recharge' | 'target_density' | 'pressure_drain';
   value: number;
   description: string;
 }

@@ -1,4 +1,4 @@
-import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect, ComboEvent, OceanThemeId } from '../types/game';
+import type { Position, Target, GameState, UnlockEvent, ExpeditionLoadout, LoadoutEffects, SalvageEventWreck, OceanEvent, Mission, MissionEffect, ComboEvent, OceanThemeId, DepthZoneInfo } from '../types/game';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { OCEAN_EVENT_CONFIG } from '../config/oceanEvents';
 import { computeLoadoutEffects, DEFAULT_LOADOUT } from '../config/expeditionConfig';
@@ -6,7 +6,7 @@ import { getOceanTheme, DEFAULT_OCEAN_THEME_ID } from '../config/oceanThemes';
 import { MapRenderer } from './MapRenderer';
 import { SonarSystem } from './SonarSystem';
 import { TargetGenerator } from './TargetGenerator';
-import { ScoreSystem, type ScoreEvent } from './ScoreSystem';
+import { ScoreSystem, type ScoreEvent, getDepthZone, DEPTH_ZONES } from './ScoreSystem';
 import { CollectionSystem } from './CollectionSystem';
 import { SalvageEventSystem } from './SalvageEventSystem';
 import { OceanEventSystem } from './OceanEventSystem';
@@ -46,6 +46,7 @@ export class GameController {
   private onMissionProgress?: (mission: Mission) => void;
   private onMissionEffectsChanged?: (effects: MissionEffect[]) => void;
   private onComboEvent?: (event: ComboEvent) => void;
+  private onPressureWarning?: (integrity: number) => void;
 
   constructor(container: HTMLElement, collectionSystem?: CollectionSystem, salvageSystem?: SalvageEventSystem) {
     this.currentLoadout = { ...DEFAULT_LOADOUT };
@@ -293,7 +294,8 @@ export class GameController {
     onMissionCompleted?: (mission: Mission) => void,
     onMissionProgress?: (mission: Mission) => void,
     onMissionEffectsChanged?: (effects: MissionEffect[]) => void,
-    onComboEvent?: (event: ComboEvent) => void
+    onComboEvent?: (event: ComboEvent) => void,
+    onPressureWarning?: (integrity: number) => void
   ) {
     this.onStateChange = onStateChange;
     this.onScoreEvent = onScoreEvent;
@@ -307,6 +309,7 @@ export class GameController {
     this.onMissionProgress = onMissionProgress;
     this.onMissionEffectsChanged = onMissionEffectsChanged;
     this.onComboEvent = onComboEvent;
+    this.onPressureWarning = onPressureWarning;
 
     this.scoreSystem.setStateCallbacks(
       (state) => this.onStateChange?.(state),
@@ -440,6 +443,14 @@ export class GameController {
 
     this.renderer.updateCamera(this.playerPosition.y);
 
+    const newWarning = this.scoreSystem.updateDepth(this.playerPosition.y, delta);
+    if (newWarning) {
+      this.onPressureWarning?.(this.scoreSystem.getState().pressureIntegrity);
+    }
+
+    const state = this.scoreSystem.getState();
+    this.renderer.updateDepthEffects(state.depth, state.pressureIntegrity, state.maxPressureIntegrity);
+
     const now = Date.now();
     const rechargeModifier = this.getSonarRechargeModifier();
     const adjustedRechargeTime = GAME_CONFIG.SONAR.RECHARGE_TIME / rechargeModifier;
@@ -536,6 +547,17 @@ export class GameController {
         if (target.type !== 'danger') {
           adjustedPoints = Math.round(target.points * scoreModifier);
           target.points = adjustedPoints;
+        }
+
+        if (target.type === 'wreck') {
+          const depthBonus = this.scoreSystem.getDepthWreckBonus(this.playerPosition.y);
+          const depthAdjusted = Math.round(adjustedPoints * depthBonus);
+          target.points = depthAdjusted;
+        }
+
+        const depthMultiplier = this.scoreSystem.getDepthScoreMultiplier(this.playerPosition.y);
+        if (depthMultiplier > 1 && target.type !== 'danger') {
+          target.points = Math.round(target.points * depthMultiplier);
         }
 
         const alive = this.scoreSystem.collectTarget(target);
